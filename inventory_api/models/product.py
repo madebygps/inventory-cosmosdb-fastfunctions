@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 class Product(BaseModel):
@@ -6,9 +6,8 @@ class Product(BaseModel):
     description: Optional[str] = None
     category: str  # partition key
     price: float
-
-    class Config:
-        extra = "forbid"
+    
+    model_config = ConfigDict(extra="forbid")
 
 class ProductCreate(Product):
     pass
@@ -19,17 +18,22 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     price: Optional[float] = None
     etag: str = Field(..., alias="_etag")
-
-    class Config:
-        allow_population_by_field_name = True
-        extra = "forbid"
+    
+    model_config = ConfigDict(
+        extra="forbid",
+        populate_by_name=True
+    )
 
 class ProductRead(Product):
     id: str
     etag: Optional[str] = Field(default=None, alias="_etag")
     ts: Optional[int] = Field(default=None, alias="_ts")
-
-    class Config:
-        allow_population_by_field_name = True
-        extra = "forbid"
-        
+    rid: Optional[str] = Field(default=None, alias="_rid")
+    self_link: Optional[str] = Field(default=None, alias="_self")
+    attachments: Optional[str] = Field(default=None, alias="_attachments")
+    
+    
+    model_config = ConfigDict(
+        extra="ignore",
+        populate_by_name=True
+    )

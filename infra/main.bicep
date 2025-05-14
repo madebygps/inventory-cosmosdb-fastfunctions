@@ -60,8 +60,7 @@ module cosmosDatabase 'core/database/cosmos-db.bicep' = {
     location: location
     tags: resourceTags
     databaseName: 'inventory'
-    containerName: 'items'
-    partitionKeyPath: '/category'
+    // Container parameters are now default values in the cosmos-db.bicep module
   }
 }
 
@@ -83,8 +82,6 @@ module appServicePlan 'core/host/appserviceplan.bicep' = {
   }
 }
 
-
-
 // Azure Functions
 module functionApp 'core/host/functions.bicep' = {
   name: 'function'
@@ -98,7 +95,9 @@ module functionApp 'core/host/functions.bicep' = {
       AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
       COSMOSDB_ENDPOINT: cosmosDatabase.outputs.cosmosEndpoint
       COSMOSDB_DATABASE: cosmosDatabase.outputs.cosmosDatabaseName
-      COSMOSDB_CONTAINER: cosmosDatabase.outputs.cosmosContainerName
+      COSMOSDB_CONTAINER_PRODUCTS: cosmosDatabase.outputs.productsContainerName
+      COSMOSDB_CONTAINER_LOCATIONS: cosmosDatabase.outputs.locationsContainerName
+      COSMOSDB_CONTAINER_INVENTORYITEMS: cosmosDatabase.outputs.inventoryItemsContainerName
     }
     applicationInsightsName: monitoringResources.outputs.applicationInsightsName
     appServicePlanId: appServicePlan.outputs.id

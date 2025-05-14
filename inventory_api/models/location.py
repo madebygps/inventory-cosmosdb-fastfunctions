@@ -1,5 +1,5 @@
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class Location(BaseModel):
     """
@@ -9,8 +9,7 @@ class Location(BaseModel):
     address: str
     manager: Optional[str] = None
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
        
 
 class LocationCreate(Location):
@@ -28,19 +27,21 @@ class LocationUpdate(BaseModel):
     manager: Optional[str] = None
     etag: str = Field(..., alias="_etag")
 
-    class Config:
-        allow_population_by_field_name = True
-        extra = "forbid"
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid"
+    )
       
 class LocationRead(Location):
     """
     Output model for reading location details from Cosmos DB.
+    Includes Cosmos DB system properties.
     """
-    id: str  # partition key
-    _etag: Optional[str] = Field(default=None, alias="_etag")
-    _ts: Optional[int] = Field(default=None, alias="_ts")
+    id: str  # primary key
+    etag: Optional[str] = Field(default=None, alias="_etag") 
+    ts: Optional[int] = Field(default=None, alias="_ts")
 
-    class Config:
-        allow_population_by_field_name = True
-        extra = "forbid"
-       
+    model_config = ConfigDict(
+        populate_by_name=True,
+        extra="forbid"
+    )

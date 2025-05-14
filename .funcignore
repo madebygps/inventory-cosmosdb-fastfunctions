@@ -1,0 +1,10 @@
+.git*
+.vscode
+.venv
+__pycache__
+local.settings.json
+test
+.env
+.python_packages
+.coverage
+htmlcov

@@ -10,12 +10,25 @@ param tags object = {}
 @description('Name of the database to create in the Cosmos DB account')
 param databaseName string
 
-@description('Name of the container to create in the Cosmos DB database')
-param containerName string
+// Container names for our application
+@description('Name of the products container')
+param productsContainerName string = 'products'
 
+@description('Name of the locations container')
+param locationsContainerName string = 'locations'
 
-@description('Path used for the partition key')
-param partitionKeyPath string = '/category'
+@description('Name of the inventory items container')
+param inventoryItemsContainerName string = 'inventoryitems'
+
+// Partition key paths for each container
+@description('Path used for products partition key')
+param productsPartitionKeyPath string = '/category'
+
+@description('Path used for locations partition key')
+param locationsPartitionKeyPath string = '/id'
+
+@description('Path used for inventory items partition key')
+param inventoryItemsPartitionKeyPath string = '/id'
 
 resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
   name: name
@@ -55,15 +68,52 @@ resource cosmosDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2023
   }
 }
 
-resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
-  name: containerName
+// Products container
+resource productsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
+  name: productsContainerName
   parent: cosmosDatabase
   properties: {
     resource: {
-      id: containerName
+      id: productsContainerName
       partitionKey: {
         paths: [
-          partitionKeyPath
+          productsPartitionKeyPath
+        ]
+        kind: 'Hash'
+      }
+    }
+    // No throughput property as serverless doesn't support it
+  }
+}
+
+// Locations container
+resource locationsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
+  name: locationsContainerName
+  parent: cosmosDatabase
+  properties: {
+    resource: {
+      id: locationsContainerName
+      partitionKey: {
+        paths: [
+          locationsPartitionKeyPath
+        ]
+        kind: 'Hash'
+      }
+    }
+    // No throughput property as serverless doesn't support it
+  }
+}
+
+// Inventory items container
+resource inventoryItemsContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2023-04-15' = {
+  name: inventoryItemsContainerName
+  parent: cosmosDatabase
+  properties: {
+    resource: {
+      id: inventoryItemsContainerName
+      partitionKey: {
+        paths: [
+          inventoryItemsPartitionKeyPath
         ]
         kind: 'Hash'
       }
@@ -74,6 +124,8 @@ resource cosmosContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/con
 
 output cosmosEndpoint string = cosmosDbAccount.properties.documentEndpoint
 output cosmosDatabaseName string = cosmosDatabase.name
-output cosmosContainerName string = cosmosContainer.name
 output cosmosAccountId string = cosmosDbAccount.id
 output cosmosAccountName string = cosmosDbAccount.name
+output productsContainerName string = productsContainer.name
+output locationsContainerName string = locationsContainer.name
+output inventoryItemsContainerName string = inventoryItemsContainer.name

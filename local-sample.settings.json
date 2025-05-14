@@ -6,6 +6,8 @@
     "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
     "COSMOSDB_ENDPOINT": "https://localhost:8081",
     "COSMOSDB_DATABASE": "inventory",
-    "COSMOSDB_CONTAINER": "items"
+    "COSMOSDB_CONTAINER_PRODUCTS": "products",
+    "COSMOSDB_CONTAINER_LOCATIONS": "locations",
+    "COSMOSDB_CONTAINER_INVENTORYITEMS": "inventoryitems"
   }
 }
