@@ -1,4 +1,4 @@
-metadata description = 'Creates an Azure App Service plan.'
+metadata description = 'Creates an Azure App Service plan for Flex Consumption.'
 
 @description('Name of the App Service Plan')
 param name string
@@ -9,23 +9,24 @@ param location string = resourceGroup().location
 @description('Tags to apply to the App Service Plan')
 param tags object = {}
 
-@description('Kind of App Service Plan')
-param kind string = ''
-
-@description('Whether the App Service Plan is reserved')
+@description('Whether the App Service Plan is reserved (required for Linux plans)')
 param reserved bool = true
 
-@description('SKU of the App Service Plan')
-param sku object
+@description('Whether the App Service Plan is zone redundant')
+param zoneRedundant bool = false
 
-resource appServicePlan 'Microsoft.Web/serverfarms@2022-09-01' = {
+resource appServicePlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   name: name
   location: location
   tags: tags
-  sku: sku
-  kind: kind
+  kind: 'functionapp'
+  sku: {
+    tier: 'FlexConsumption'
+    name: 'FC1'
+  }
   properties: {
     reserved: reserved
+    zoneRedundant: zoneRedundant
   }
 }
 

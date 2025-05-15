@@ -8,6 +8,6 @@
     "COSMOSDB_DATABASE": "inventory",
     "COSMOSDB_CONTAINER_PRODUCTS": "products",
     "COSMOSDB_CONTAINER_LOCATIONS": "locations",
-    "COSMOSDB_CONTAINER_INVENTORYITEMS": "inventoryitems"
+    "COSMOSDB_CONTAINER_INVENTORY": "inventoryitems"
   }
 }

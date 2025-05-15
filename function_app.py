@@ -13,7 +13,7 @@ app = FastAPI(
     title="Inventory API",
     version="1.0.0",
     openapi_url="/api/openapi.json",
-    docs_url="/docs",
+    docs_url="/",
 )
 
 @app.exception_handler(cosmos_exceptions.CosmosHttpResponseError)
@@ -38,7 +38,7 @@ app.include_router(product_router)
 
 function_app = func.FunctionApp()
 
-@function_app.route(route="{*route}", auth_level=func.AuthLevel.ANONYMOUS)
+@function_app.route(route="{*route}", auth_level=func.AuthLevel.FUNCTION)
 async def main(req: func.HttpRequest) -> func.HttpResponse:
     """Azure Functions entry‑point routed through FastAPI."""
     return await func.AsgiMiddleware(app).handle_async(req)

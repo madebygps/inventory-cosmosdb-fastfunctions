@@ -75,3 +75,4 @@ resource containerResource 'Microsoft.Storage/storageAccounts/blobServices/conta
 
 output name string = storageAccount.name
 output primaryEndpoints object = storageAccount.properties.primaryEndpoints
+output key string = storageAccount.listKeys().keys[0].value

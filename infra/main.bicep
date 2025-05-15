@@ -1,137 +1,239 @@
 targetScope = 'subscription'
 
-@description('Name of the environment which is used to generate a short unique hash used in all resources.')
 @minLength(1)
 @maxLength(64)
-param environmentName string
+@description('Environment (from parameters) used for resource naming')
+param name string
 
-@description('Primary location for all resources')
 @minLength(1)
+@description('Primary location for all resources')
 param location string
+@description('Skip storage role assignment (to avoid duplicate errors)')
+param skipRoleAssignment bool = true
 
-@description('Name for the resource group. If empty, a default name will be created based on the environment name.')
+@description('Resource Group name (if empty, a default will be used)')
 param resourceGroupName string = ''
 
-@description('Tags to apply to all resources.')
-param tags object = {}
+@description('Enable VNet integration (and private endpoints)')
+param vnetEnabled bool = false
 
-// Variables
-var prefix = '${environmentName}-${uniqueString(environmentName)}'
-var rgName = resourceGroupName == '' ? 'rg-${environmentName}' : resourceGroupName
-var resourceTags = union(tags, { 'azd-env-name': environmentName })
+@description('Custom VNet name (optional, defaulted below)')
+param vNetName string = ''
 
-// Create a resource group
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
-  name: rgName
+@description('Custom Storage Account name (optional)')
+param storageAccountName string = ''
+
+@description('Custom Cosmos DB account name (optional)')
+param cosmosAccountName string = ''
+
+@description('Name of the database inside Cosmos DB')
+param cosmosDatabaseName string = 'inventory'
+
+// App Insights & Log Analytics (for Function App)
+@description('Custom Log Analytics workspace name (optional)')
+param logAnalyticsName string = ''
+@description('Custom App Insights name (optional)')
+param applicationInsightsName string = ''
+
+// User‐assigned identity for the Function App
+@description('Optional name for a user‐assigned managed identity')
+param apiUserAssignedIdentityName string = ''
+
+var tags = {
+  'azd-env-name': name
+}
+var token = uniqueString(subscription().id, name, location)
+var prefix = '${name}-${token}'
+
+// ───────────────────────────
+// Resource Group
+// ───────────────────────────
+resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
+  name: empty(resourceGroupName) ? '${prefix}-rg' : resourceGroupName
   location: location
-  tags: resourceTags
+  tags: tags
 }
 
-// Monitor application with Azure Monitor
-module monitoringResources 'core/monitor/monitoring.bicep' = {
-  name: 'monitoring'
-  scope: resourceGroup
+// ───────────────────────────
+// Cosmos DB (serverless + 3 containers)
+// ───────────────────────────
+module cosmosDb 'core/database/cosmos-db.bicep' = {
+  name: 'cosmosDb'
+  scope: rg
   params: {
+    name: empty(cosmosAccountName) ? '${prefix}-cosmos' : cosmosAccountName
     location: location
-    tags: resourceTags
-    logAnalyticsName: '${prefix}-logworkspace'
-    applicationInsightsName: '${prefix}-appinsights'
-    applicationInsightsDashboardName: '${prefix}-appinsights-dashboard'
+    tags: tags
+    databaseName: cosmosDatabaseName
+    // productsContainerName, locationsContainerName, inventoryItemsContainerName,
+    // and partition paths come from defaults in the module
   }
 }
 
-// Storage for hosting static website
+// ───────────────────────────
+// Storage (for Functions + deployment artifacts)
+// ───────────────────────────
 module storageAccount 'core/storage/storage-account.bicep' = {
   name: 'storage'
-  scope: resourceGroup
+  scope: rg
   params: {
-    name: '${toLower(take(replace(prefix, '-', ''), 17))}storage'
+    name: empty(storageAccountName) ? '${toLower(take(replace(prefix, '-', ''), 17))}storage' : storageAccountName
     location: location
-    tags: resourceTags
+    tags: tags
+    containers: [
+      { name: 'function-deployments' }
+    ]
   }
 }
 
-// Cosmos db
-module cosmosDatabase 'core/database/cosmos-db.bicep' = {
-  name: 'cosmos-db'
-  scope: resourceGroup
+
+// ───────────────────────────
+// Monitoring (Log Analytics + App Insights)
+// ───────────────────────────
+module logAnalytics 'core/monitor/loganalytics.bicep' = {
+  name: 'logAnalytics'
+  scope: rg
   params: {
-    name: '${toLower(take(replace(prefix, '-', ''), 24))}-cosmos'
+    name: empty(logAnalyticsName) ? '${prefix}-la' : logAnalyticsName
     location: location
-    tags: resourceTags
-    databaseName: 'inventory'
-    // Container parameters are now default values in the cosmos-db.bicep module
+    tags: tags
   }
 }
 
-// App Service Plan
-module appServicePlan 'core/host/appserviceplan.bicep' = {
-  name: 'appserviceplan'
-  scope: resourceGroup
+module appInsights 'core/monitor/applicationinsights.bicep' = {
+  name: 'appInsights'
+  scope: rg
+  params: {
+    name: empty(applicationInsightsName) ? '${prefix}-ai' : applicationInsightsName
+    dashboardName: '${prefix}-ai-dashboard'
+    location: location
+    tags: tags
+    logAnalyticsWorkspaceId: logAnalytics.outputs.id
+  }
+}
+
+// ───────────────────────────
+// User‐assigned Identity for the Function App
+// ───────────────────────────
+module userIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
+  name: 'userIdentity'
+  scope: rg
+  params: {
+    name: empty(apiUserAssignedIdentityName) ? '${prefix}-ui' : apiUserAssignedIdentityName
+    location: location
+    tags: tags
+  }
+}
+
+// ───────────────────────────
+// App Service Plan (Flex Consumption)
+// ───────────────────────────
+module appPlan 'core/host/appserviceplan.bicep' = {
+  name: 'appPlan'
+  scope: rg
   params: {
     name: '${prefix}-plan'
     location: location
-    tags: resourceTags
-    sku: {
-      name: 'Y1'
-      tier: 'Dynamic'
-      size: 'Y1'
-      family: 'Y'
-      capacity: 0
-    }
+    tags: tags
+    reserved: true
+    zoneRedundant: false
   }
 }
 
-// Azure Functions
+// ───────────────────────────
+// Function App
+// ───────────────────────────
 module functionApp 'core/host/functions.bicep' = {
-  name: 'function'
-  scope: resourceGroup
-  params: {
-    name: '${prefix}-function-app'
-    location: location
-    tags: union(resourceTags, { 'azd-service-name': 'api' })
-    alwaysOn: false
-    appSettings: {
-      AzureWebJobsFeatureFlags: 'EnableWorkerIndexing'
-      COSMOSDB_ENDPOINT: cosmosDatabase.outputs.cosmosEndpoint
-      COSMOSDB_DATABASE: cosmosDatabase.outputs.cosmosDatabaseName
-      COSMOSDB_CONTAINER_PRODUCTS: cosmosDatabase.outputs.productsContainerName
-      COSMOSDB_CONTAINER_LOCATIONS: cosmosDatabase.outputs.locationsContainerName
-      COSMOSDB_CONTAINER_INVENTORYITEMS: cosmosDatabase.outputs.inventoryItemsContainerName
+  name: 'functionApp'
+  scope: rg
+    params: {
+      planName: appPlan.outputs.name
+      appName: '${prefix}-func'
+      location: location
+      tags: tags
+      serviceTag: { 'azd-service-name': 'api' }
+      storageAccountName: storageAccount.outputs.name
+      deploymentStorageContainerName: 'function-deployments'
+      applicationInsightsName: appInsights.outputs.name
+      skipRoleAssignment: false
+      functionAppRuntime: 'python'
+      functionAppRuntimeVersion: '3.11'
+      maximumInstanceCount: 100
+      instanceMemoryMB: 2048
+      cosmosDbEndpoint: cosmosDb.outputs.cosmosEndpoint
+      cosmosDbDatabase: cosmosDb.outputs.cosmosDatabaseName
+      cosmosDbProductsContainer: cosmosDb.outputs.productsContainerName
+      cosmosDbLocationsContainer: cosmosDb.outputs.locationsContainerName
+      cosmosDbInventoryItemsContainer: cosmosDb.outputs.inventoryItemsContainerName
     }
-    applicationInsightsName: monitoringResources.outputs.applicationInsightsName
-    appServicePlanId: appServicePlan.outputs.id
-    runtimeName: 'python'
-    runtimeVersion: '3.10'
+}
+
+// ───────────────────────────
+// Role assignments
+// ───────────────────────────
+// Give the Function App identity access to Cosmos DB (data & control plane)
+module cosmosDataRole 'core/database/cosmos-db-data-plane-role.bicep' = {
+  name: 'cosmosDataRole'
+  scope: rg
+  params: {
+    principalId: functionApp.outputs.functionAppPrincipalId
+    cosmosAccountName: cosmosDb.outputs.cosmosAccountName
+    roleType: 'contributor'
+  }
+}
+
+module cosmosControlRole 'core/database/cosmos-db-control-plane-role.bicep' = {
+  name: 'cosmosControlRole'
+  scope: rg
+  params: {
+    identityId: functionApp.outputs.functionAppPrincipalId
+    cosmosAccountName: cosmosDb.outputs.cosmosAccountName
+  }
+}
+
+// Attach Storage Blob Data Owner role to the Function App via module
+module blobRoleAssign 'core/storage/blob-role-assignment.bicep' = if (!skipRoleAssignment) {
+  name: 'blobRoleAssign'
+  scope: rg
+  params: {
+    principalId: functionApp.outputs.functionAppPrincipalId
     storageAccountName: storageAccount.outputs.name
-    skipRoleAssignment: true  // Add this to prevent role assignment errors
+    roleDefinitionId: 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b'
   }
 }
 
-module cosmosRoleAssignment 'core/database/cosmos-db-role-assignment.bicep' = {
-  name: 'cosmos-role-assignment'
-  scope: resourceGroup
+// ───────────────────────────
+// (Optional) VNet and Private Endpoint for Storage
+// ───────────────────────────
+module vnetModule 'core/network/vnet.bicep' = if (vnetEnabled) {
+  name: 'vnet'
+  scope: rg
   params: {
-    principalId: functionApp.outputs.identityPrincipalId
-    cosmosAccountName: cosmosDatabase.outputs.cosmosAccountName
-    roleType: 'contributor' 
-  }
-}
-// Function app diagnostics
-module functionDiagnostics 'core/host/app-diagnostics.bicep' = {
-  name: 'functionDiagnostics'
-  scope: resourceGroup
-  params: {
-    appName: functionApp.outputs.name
-    kind: 'functionapp'
-    diagnosticWorkspaceId: monitoringResources.outputs.logAnalyticsWorkspaceId
+    location: location
+    tags: tags
+    vNetName: empty(vNetName) ? '${prefix}-vnet' : vNetName
   }
 }
 
-// Output
-output azureLocation string = location
-output azureTenantId string = tenant().tenantId
-output resourceGroupId string = resourceGroup.id
-output functionAppName string = functionApp.outputs.name
-output functionAppEndpoint string = functionApp.outputs.uri
-output cosmosDbEndpoint string = cosmosDatabase.outputs.cosmosEndpoint
+module privateEndpoint 'core/network/storage-PrivateEndpoint.bicep' = if (vnetEnabled) {
+  name: 'storagePE'
+  scope: rg
+  params: {
+    virtualNetworkName: empty(vNetName) ? '${prefix}-vnet' : vNetName
+    subnetName: vnetEnabled ? vnetModule.outputs.peSubnetName : ''
+    resourceName: storageAccount.outputs.name
+    enableBlob: true
+    enableQueue: false
+    enableTable: false
+  }
+}
+
+// ───────────────────────────
+// Outputs
+// ───────────────────────────
+output resourceGroupId string = rg.id
+output functionAppName string = functionApp.outputs.functionAppName
+output functionAppEndpoint string = 'https://${functionApp.outputs.functionAppName}.azurewebsites.net'
+output cosmosDbEndpoint string = cosmosDb.outputs.cosmosEndpoint
+output cosmosDatabaseName string = cosmosDb.outputs.cosmosDatabaseName
+output storageAccountName string = storageAccount.outputs.name
