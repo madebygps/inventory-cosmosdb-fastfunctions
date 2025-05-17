@@ -13,7 +13,7 @@ app = FastAPI(
     title="Inventory API",
     version="1.0.0",
     openapi_url="/api/openapi.json",
-    docs_url="/",
+    docs_url="/docs",
 )
 
 @app.exception_handler(cosmos_exceptions.CosmosHttpResponseError)
