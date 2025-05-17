@@ -1,4 +1,3 @@
-
 class ApplicationError(Exception):
     """Base class for application-specific errors."""
     pass
@@ -16,3 +15,7 @@ class DatabaseError(ApplicationError):
     def __init__(self, message="A database error occurred.", original_exception=None):
         super().__init__(message)
         self.original_exception = original_exception
+
+class PreconditionFailedError(ApplicationError):
+    """Raised when an optimistic concurrency check fails (ETag mismatch)."""
+    pass

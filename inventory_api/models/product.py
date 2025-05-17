@@ -4,7 +4,7 @@ from typing import Optional
 class Product(BaseModel):
     name: str
     description: Optional[str] = None
-    category: str  # partition key
+    category: str 
     price: float
     
     model_config = ConfigDict(extra="forbid")
@@ -17,7 +17,7 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     category: Optional[str] = None
     price: Optional[float] = None
-    etag: str = Field(..., alias="_etag")
+    etag: Optional[str] = Field(default=None, alias="_etag")
     
     model_config = ConfigDict(
         extra="forbid",

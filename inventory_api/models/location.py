@@ -37,7 +37,7 @@ class LocationRead(Location):
     Output model for reading location details from Cosmos DB.
     Includes Cosmos DB system properties.
     """
-    id: str  # primary key
+    id: str
     etag: Optional[str] = Field(default=None, alias="_etag") 
     ts: Optional[int] = Field(default=None, alias="_ts")
 
