@@ -2,8 +2,9 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Header, Path, Query, status, Depends
 from inventory_api.models.product import ProductRead, ProductCreate, ProductUpdate
 from inventory_api.crud.product_crud import list_products, create_product, delete_product, update_product
-from inventory_api.db import get_container, PRODUCTS_CONTAINER
+from inventory_api.db import get_container, ContainerType
 from azure.cosmos.aio import ContainerProxy
+
 
 from inventory_api.exceptions import (
     PreconditionFailedError,
@@ -17,7 +18,7 @@ from inventory_api.logging_config import logger
 router = APIRouter(prefix="/products", tags=["products"])
 
 async def get_products_container() -> ContainerProxy:
-    return await get_container(name=PRODUCTS_CONTAINER)
+    return await get_container(ContainerType.PRODUCTS)
 
 @router.get("/", response_model=list[ProductRead])
 async def get_products(

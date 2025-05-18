@@ -1,31 +1,42 @@
-from typing import Any
-from azure.cosmos.aio import CosmosClient
+from typing import Optional
+from azure.cosmos.aio import CosmosClient, ContainerProxy
 from azure.identity.aio import DefaultAzureCredential
 import os
 
-COSMOSDB_ENDPOINT  = os.environ["COSMOSDB_ENDPOINT"]
-DATABASE_NAME      = os.environ["COSMOSDB_DATABASE"]
-PRODUCTS_CONTAINER = os.environ["COSMOSDB_CONTAINER_PRODUCTS"]
-LOCATIONS_CONTAINER= os.environ["COSMOSDB_CONTAINER_LOCATIONS"]
-INVENTORY_CONTAINER= os.environ["COSMOSDB_CONTAINER_INVENTORY"]
+from enum import Enum
 
+class ContainerType(str, Enum):
+    PRODUCTS = "products" 
+    LOCATIONS = "locations"
+    INVENTORY = "inventory"
 
-_credential = DefaultAzureCredential()
-_client     = CosmosClient(COSMOSDB_ENDPOINT, credential=_credential)
+_client: Optional[CosmosClient] = None
+_credential: Optional[DefaultAzureCredential] = None
 
+COSMOSDB_ENDPOINT = os.environ["COSMOSDB_ENDPOINT"]
+DATABASE_NAME = os.environ["COSMOSDB_DATABASE"]
+CONTAINERS = {
+    "products": os.environ["COSMOSDB_CONTAINER_PRODUCTS"],
+    "locations": os.environ["COSMOSDB_CONTAINER_LOCATIONS"],
+    "inventory": os.environ["COSMOSDB_CONTAINER_INVENTORY"]
+}
 
-async def get_container(name: str = PRODUCTS_CONTAINER) -> Any:
-    """
-    FastAPI dependency: returns a pre-opened Cosmos container client.
-    """
+async def _ensure_client() -> CosmosClient:
+    global _client, _credential
+    if _client is None:
+        _credential = DefaultAzureCredential()
+        _client = CosmosClient(COSMOSDB_ENDPOINT, _credential)
+    return _client
 
-    database = _client.get_database_client(DATABASE_NAME)
-    
-    if name == PRODUCTS_CONTAINER:
-        return database.get_container_client(PRODUCTS_CONTAINER)
-    elif name == LOCATIONS_CONTAINER:
-        return database.get_container_client(LOCATIONS_CONTAINER)
-    elif name == INVENTORY_CONTAINER:
-        return database.get_container_client(INVENTORY_CONTAINER)
-    else:
-        raise ValueError(f"Unknown container name: {name}")
+async def get_container(container_type: ContainerType) -> ContainerProxy:
+    container_name = CONTAINERS.get(container_type)
+    if not container_name:
+        raise ValueError(
+            f"Container '{container_type}' not configured. "
+            f"Valid options: {list(CONTAINERS.keys())}"
+        )
+
+    client = await _ensure_client()
+    database = client.get_database_client(DATABASE_NAME)
+    return database.get_container_client(container_name)
+
