@@ -25,7 +25,6 @@ class LocationUpdate(BaseModel):
     name: Optional[str] = None
     address: Optional[str] = None
     manager: Optional[str] = None
-    etag: str = Field(..., alias="_etag")
 
     model_config = ConfigDict(
         populate_by_name=True,
