@@ -1,8 +1,9 @@
-from azure.cosmos.exceptions import CosmosHttpResponseError
+from collections import defaultdict
+from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosBatchOperationError
 from inventory_api.models.product import ProductRead, ProductCreate
 from azure.cosmos.aio import ContainerProxy
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from inventory_api.exceptions import (
     ProductNotFoundError,
     ProductAlreadyExistsError,
@@ -160,44 +161,108 @@ async def update_product(
         ) from e
 
 
+async def get_product_by_id(
+    container: ContainerProxy, product_id: str, category: str
+) -> ProductRead:
+    try:
+        item = await container.read_item(item=product_id, partition_key=category)
+        return ProductRead.model_validate(item)
+    except CosmosHttpResponseError as e:
+        if e.status_code == 404:
+            raise ProductNotFoundError(
+                f"Product with ID '{product_id}' and category '{category}' not found"
+            ) from e
+        logger.error(
+            f"Cosmos DB error retrieving product {product_id}: Status {e.status_code}, Msg: {e.message}",
+            exc_info=True,
+        )
+        raise DatabaseError(
+            f"Cosmos DB error retrieving product {product_id}: Status {e.status_code}, Msg: {e.message}",
+            original_exception=e,
+        ) from e
+    except Exception as e:
+        logger.error(
+            f"Unexpected error retrieving product {product_id}: {e}", exc_info=True
+        )
+        raise DatabaseError(
+            "An unexpected error occurred during database operation.",
+            original_exception=e,
+        ) from e
+
+
 async def create_products(
     container: ContainerProxy, products: List[ProductCreate]
 ) -> List[ProductRead]:
     if not products:
         return []
-    pk = products[0].category
-    batch = container.create_transactional_batch(partition_key=pk)
-    try:
-        for prod in products:
-            data = prod.model_dump()
+
+    products_by_category: Dict[str, List[ProductCreate]] = defaultdict(list)
+    for product_model in products:
+        products_by_category[product_model.category].append(product_model)
+
+    all_successfully_created_products: List[ProductRead] = []
+
+    for category_pk, product_list_for_category in products_by_category.items():
+        if not product_list_for_category:
+            continue
+
+        batch_operations: List[Tuple[str, Tuple[Any, ...], Dict[str, Any]]] = []
+
+        product_data_for_batch = []
+
+        for product_to_create in product_list_for_category:
+            data = product_to_create.model_dump()
             data["id"] = data.get("id", str(uuid.uuid4()))
-            batch.create_item(body=data)
-        response = await batch.execute()
-        if not response.get_successful():
+            product_data_for_batch.append(data)  # Store the full data with ID
+            batch_operations.append(("create", (data,), {}))
+
+        if not batch_operations:
+            continue
+
+        try:
+            batch_results = await container.execute_item_batch(
+                batch_operations=batch_operations, partition_key=category_pk
+            )
+
+            for result_item in batch_results:
+                if isinstance(result_item, dict) and result_item.get("id"):
+                    all_successfully_created_products.append(
+                        ProductRead.model_validate(result_item)
+                    )
+                else:
+                    logger.warning(
+                        f"Unexpected item in successful batch result for category '{category_pk}': {result_item}"
+                    )
+
+        except CosmosBatchOperationError as e:
             logger.error(
-                f"Transactional batch failed. Status code: {response.status_code}"
+                f"Cosmos DB Batch Operation Error for category '{category_pk}': "
+                f"First failed operation index: {e.error_index}. Message: {str(e)}",
+                exc_info=True,
             )
-            for op in response.get_all_operations():
-                if not op.successful:
-                    logger.error(f"Batch operation failed: {op.error_message}")
-            raise DatabaseError(
-                f"Transactional batch failed with status code: {response.status_code}",
-                original_exception=response,
+            for i, op_response in enumerate(e.operation_responses):
+                attempted_item_id = product_data_for_batch[i].get("id", "unknown_id")
+                if (
+                    op_response.get("statusCode", 200) >= 400
+                ):  # Check if it's an error response
+                    logger.error(
+                        f"  Failed operation in batch for item ID '{attempted_item_id}': {op_response}"
+                    )
+                else:
+                    logger.info(
+                        f"  Operation response (may be pre-failure success) for item ID '{attempted_item_id}': {op_response}"
+                    )
+
+        except CosmosHttpResponseError as e_http:
+            logger.error(
+                f"Cosmos DB HTTP error during execute_item_batch for category '{category_pk}': "
+                f"Status Code {e_http.status_code}, Message: {e_http.message}. ",
+                exc_info=True,
             )
-        items = [op.resource for op in response.get_all_operations()]
-        return [ProductRead.model_validate(item) for item in items]
-    except CosmosHttpResponseError as e:
-        logger.error(
-            f"Cosmos DB error during batch execution: Status Code {e.status_code}, Message: {e.message}",
-            exc_info=True,
-        )
-        raise DatabaseError(
-            f"Cosmos DB error during batch execution: Status Code {e.status_code}, Message: {e.message}",
-            original_exception=e,
-        ) from e
-    except Exception as e:
-        logger.error(f"Unexpected error during batch execution: {e}", exc_info=True)
-        raise DatabaseError(
-            "An unexpected error occurred during database operation.",
-            original_exception=e,
-        ) from e
+        except Exception as e_generic:
+            logger.error(
+                f"Unexpected error during execute_item_batch for category '{category_pk}': {e_generic}",
+                exc_info=True,
+            )
+
+    return all_successfully_created_products
