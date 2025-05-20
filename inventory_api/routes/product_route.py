@@ -1,8 +1,7 @@
-from typing import List
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Header, Path, Query, status, Depends
-from inventory_api.models.product import ProductRead, ProductCreate, ProductUpdate
+from inventory_api.models.product import ProductList, ProductResponse, ProductCreate, ProductUpdate
 from inventory_api.crud.product_crud import (
-    create_products,
     get_product_by_id,
     list_products,
     create_product,
@@ -11,7 +10,6 @@ from inventory_api.crud.product_crud import (
 )
 from inventory_api.db import get_container, ContainerType
 from azure.cosmos.aio import ContainerProxy
-
 
 from inventory_api.exceptions import (
     PreconditionFailedError,
@@ -29,23 +27,42 @@ async def get_products_container() -> ContainerProxy:
     return await get_container(ContainerType.PRODUCTS)
 
 
-@router.get("/", response_model=list[ProductRead])
+@router.get("/", response_model=ProductList)
 async def get_products(
     category: str = Query("electronics", title="The category to filter products by"),
-    skip: int = Query(0, title="Number of items to skip"),
+    continuation_token: Optional[str] = Query(None, title="Token for pagination"),
     limit: int = Query(50, title="Maximum number of items to return"),
     container: ContainerProxy = Depends(get_products_container),
-) -> List[ProductRead]:
-    return await list_products(
-        container=container, category=category, limit=limit, skip=skip
-    )
+):
+    try:
+        return await list_products(
+            container=container, 
+            category=category, 
+            max_items=limit,
+            continuation_token=continuation_token
+        )
+    except DatabaseError as e:
+        logger.error(f"Database error: {e}", exc_info=e.original_exception)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A database error occurred.",
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error listing products: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected internal server error occurred.",
+        )
 
 
-@router.post("/", response_model=ProductRead, status_code=status.HTTP_201_CREATED)
+
+
+
+@router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def add_new_product(
     product: ProductCreate,
     container: ContainerProxy = Depends(get_products_container),
-) -> ProductRead:
+):
     try:
         return await create_product(container=container, product=product)
     except ProductAlreadyExistsError as e:
@@ -69,9 +86,9 @@ async def delete_existing_product(
     category: str = Query(..., title="The category of the product (partition key)"),
     container: ContainerProxy = Depends(get_products_container),
     product_id: str = Path(..., title="The ID of the product to delete"),
-) -> None:
+):
     try:
-        return await delete_product(
+        await delete_product(
             category=category, container=container, product_id=product_id
         )
     except ProductNotFoundError as e:
@@ -92,9 +109,7 @@ async def delete_existing_product(
         )
 
 
-@router.patch(
-    "/{product_id}", response_model=ProductRead
-)  # Use PATCH for partial updates
+@router.patch("/{product_id}", response_model=ProductResponse)
 async def update_existing_product(
     updated_product: ProductUpdate,
     product_id: str = Path(..., title="The ID of the product to update"),
@@ -105,13 +120,13 @@ async def update_existing_product(
         alias="If-Match",
         description="ETag from the previous GET request for optimistic concurrency",
     ),
-) -> ProductRead:
+):
     try:
         return await update_product(
             container=container,
             product_id=product_id,
             category=category,
-            updated_product_data=updated_product.model_dump(exclude_unset=True),
+            updates=updated_product,
             etag=if_match_etag,
         )
     except ProductNotFoundError as e:
@@ -136,37 +151,12 @@ async def update_existing_product(
         )
 
 
-@router.post(
-    "/batch", response_model=List[ProductRead], status_code=status.HTTP_201_CREATED
-)
-async def add_products_batch(
-    products: List[ProductCreate],
-    container: ContainerProxy = Depends(get_products_container),
-) -> List[ProductRead]:
-    try:
-        return await create_products(container=container, products=products)
-    except DatabaseError as e:
-        logger.error(f"Database error: {e}", exc_info=e.original_exception)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="A database error occurred.",
-        )
-    except Exception as e:
-        logger.error(
-            f"Unexpected error during batch product creation: {e}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected internal server error occurred.",
-        )
-
-
-@router.get("/{product_id}", response_model=ProductRead)
+@router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: str = Path(..., title="The ID of the product to retrieve"),
     category: str = Query(..., title="The category of the product (partition key)"),
     container: ContainerProxy = Depends(get_products_container),
-) -> ProductRead:
+):
     try:
         return await get_product_by_id(
             container=container, product_id=product_id, category=category

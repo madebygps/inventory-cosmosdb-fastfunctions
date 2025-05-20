@@ -1,39 +1,84 @@
-from collections import defaultdict
-from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosBatchOperationError
-from inventory_api.models.product import ProductRead, ProductCreate
+from azure.cosmos.exceptions import CosmosHttpResponseError
 from azure.cosmos.aio import ContainerProxy
 import uuid
-from typing import Any, Dict, List, Tuple
+from typing import Optional
+from datetime import datetime
+import logging
+from builtins import anext
+
+from inventory_api.models.product import (
+    ProductCreate,
+    ProductUpdate,
+    ProductResponse,
+    ProductList,
+    ProductStatus,
+)
+
 from inventory_api.exceptions import (
     ProductNotFoundError,
     ProductAlreadyExistsError,
     DatabaseError,
     PreconditionFailedError,
 )
-from inventory_api.logging_config import logger
-from azure.core import MatchConditions
+
+logger = logging.getLogger(__name__)
 
 
 async def list_products(
     container: ContainerProxy,
-    category: str = "electronics",
-    limit: int = 50,
-    skip: int = 0,
-) -> List[ProductRead]:
-    query = (
-        "SELECT * FROM c WHERE c.category=@cat OFFSET @skip LIMIT @limit"
-        if category
-        else "SELECT * FROM c OFFSET @skip LIMIT @limit"
-    )
-    params = [
-        {"name": "@cat", "value": category},
-        {"name": "@skip", "value": skip},
-        {"name": "@limit", "value": limit},
-    ]
+    category: str,
+    continuation_token: Optional[str] = None,
+    max_items: int = 50,
+) -> ProductList:
+    """
+    Retrieve a paginated list of products by category.
+    """
+    query = "SELECT * FROM c WHERE c.category = @category"
+    params = [{"name": "@category", "value": category}]
+
+    # Create query options dictionary
+    query_options = {"max_item_count": max_items}
+
     try:
-        iterator = container.query_items(query=query, parameters=params)
-        items = [item async for item in iterator]
-        return [ProductRead.model_validate(i) for i in items]
+        items = []
+        next_continuation_token = None
+
+        # Get the query iterator
+        query_iterator = container.query_items(
+            query=query, parameters=params, partition_key=category, **query_options
+        )
+
+        # Create a page iterator
+        page_iterator = query_iterator.by_page(continuation_token)
+
+        # Try to get the first page
+        try:
+            # Get the first page
+            first_page = await anext(page_iterator)
+
+            # Since AsyncList is not directly iterable, we need to iterate it asynchronously
+            # Convert AsyncList to a regular list
+            page_items = [item async for item in first_page]
+
+            # Process items in the page
+            for item in page_items:
+                try:
+                    product = ProductResponse.model_validate(item)
+                    items.append(product)
+                except Exception as e:
+                    logger.warning(f"Failed to validate product: {e}, item: {item}")
+                    continue
+
+            # Get continuation token for next page from the page_iterator
+            next_continuation_token = page_iterator.continuation_token
+
+        except StopAsyncIteration:
+            # No items found with this continuation token
+            pass
+
+        # Return the items and continuation token
+        return ProductList(items=items, continuation_token=next_continuation_token)
+
     except CosmosHttpResponseError as e:
         logger.error(
             f"Cosmos DB error during product listing: Status Code {e.status_code}, Message: {e.message}",
@@ -53,16 +98,33 @@ async def list_products(
 
 async def create_product(
     container: ContainerProxy, product: ProductCreate
-) -> ProductRead:
+) -> ProductResponse:
+    """
+    Create a new product in the database.
+
+    Args:
+        container: Cosmos DB container client
+        product: Product data to create
+
+    Returns:
+        Newly created product with system fields
+
+    Raises:
+        ProductAlreadyExistsError: If a product with same ID/SKU exists
+        DatabaseError: If a database operation fails
+    """
     data = product.model_dump()
-    data["id"] = data.get("id", str(uuid.uuid4()))
+    data["id"] = str(uuid.uuid4())
+    data["status"] = ProductStatus.ACTIVE.value
+    data["last_updated"] = datetime.utcnow().isoformat()
+
     try:
         result = await container.create_item(body=data)
-        return ProductRead.model_validate(result)
+        return ProductResponse.model_validate(result)
     except CosmosHttpResponseError as e:
         if e.status_code == 409:
             raise ProductAlreadyExistsError(
-                f"Product {data['id']} already exists"
+                f"Product with ID {data['id']} or SKU {data.get('sku')} already exists"
             ) from e
         logger.error(
             f"Cosmos DB error during product creation: Status Code {e.status_code}, Message: {e.message}",
@@ -80,93 +142,27 @@ async def create_product(
         ) from e
 
 
-async def delete_product(
-    category: str,
-    container: ContainerProxy,
-    product_id: str,
-):
-    try:
-        await container.delete_item(item=product_id, partition_key=category)
-        return
-    except CosmosHttpResponseError as e:
-        if e.status_code == 404:
-            raise ProductNotFoundError(
-                f"Product with ID '{product_id}' and category '{category}' not found"
-            ) from e
-        logger.error(
-            f"Cosmos DB error during product deletion: Status Code {e.status_code}, Message: {e.message}",
-            exc_info=True,
-        )
-        raise DatabaseError(
-            f"Cosmos DB error during product deletion: Status Code {e.status_code}, Message: {e.message}",
-            original_exception=e,
-        ) from e
-    except Exception as e:
-        logger.error(f"Unexpected error during product deletion: {e}", exc_info=True)
-        raise DatabaseError(
-            "An unexpected error occurred during database operation.",
-            original_exception=e,
-        ) from e
-
-
-async def update_product(
-    container: ContainerProxy,
-    product_id: str,
-    category: str,
-    updated_product_data: Dict[str, Any],
-    etag: str,
-) -> ProductRead:
-    """ """
-    patch_operations = []
-    for key, value in updated_product_data.items():
-        if key != "_etag":
-            patch_operations.append({"op": "set", "path": f"/{key}", "value": value})
-
-    if not patch_operations:
-        raise ValueError("No fields provided for update.")
-
-    try:
-        result = await container.patch_item(
-            item=product_id,
-            partition_key=category,
-            patch_operations=patch_operations,
-            etag=etag,
-            match_condition=MatchConditions.IfNotModified,
-        )
-
-        return ProductRead.model_validate(result)
-
-    except CosmosHttpResponseError as e:
-        if e.status_code == 404:
-            raise ProductNotFoundError(
-                f"Product with ID '{product_id}' and category '{category}' not found"
-            ) from e
-        if e.status_code == 412:
-            raise PreconditionFailedError(
-                f"Product with ID '{product_id}' has been modified since last retrieved."
-            ) from e
-        logger.error(
-            f"Cosmos DB error during product update: Status Code {e.status_code}, Message: {e.message}",
-            exc_info=True,
-        )
-        raise DatabaseError(
-            f"Cosmos DB error during product update: Status Code {e.status_code}, Message: {e.message}",
-            original_exception=e,
-        ) from e
-    except Exception as e:
-        logger.error(f"Unexpected error during product update: {e}", exc_info=True)
-        raise DatabaseError(
-            "An unexpected error occurred during database operation.",
-            original_exception=e,
-        ) from e
-
-
 async def get_product_by_id(
     container: ContainerProxy, product_id: str, category: str
-) -> ProductRead:
+) -> ProductResponse:
+    """
+    Retrieve a product by its ID and category.
+
+    Args:
+        container: Cosmos DB container client
+        product_id: ID of the product to retrieve
+        category: Category of the product (partition key)
+
+    Returns:
+        The retrieved product details
+
+    Raises:
+        ProductNotFoundError: If the product doesn't exist
+        DatabaseError: If a database operation fails
+    """
     try:
         item = await container.read_item(item=product_id, partition_key=category)
-        return ProductRead.model_validate(item)
+        return ProductResponse.model_validate(item)
     except CosmosHttpResponseError as e:
         if e.status_code == 404:
             raise ProductNotFoundError(
@@ -190,79 +186,116 @@ async def get_product_by_id(
         ) from e
 
 
-async def create_products(
-    container: ContainerProxy, products: List[ProductCreate]
-) -> List[ProductRead]:
-    if not products:
-        return []
+async def update_product(
+    container: ContainerProxy,
+    product_id: str,
+    category: str,
+    updates: ProductUpdate,
+    etag: str,
+) -> ProductResponse:
+    """
+    Update an existing product.
 
-    products_by_category: Dict[str, List[ProductCreate]] = defaultdict(list)
-    for product_model in products:
-        products_by_category[product_model.category].append(product_model)
+    Args:
+        container: Cosmos DB container client
+        product_id: ID of the product to update
+        category: Category of the product (partition key)
+        updates: Fields to update
+        etag: Current ETag for concurrency control
 
-    all_successfully_created_products: List[ProductRead] = []
+    Returns:
+        The updated product
 
-    for category_pk, product_list_for_category in products_by_category.items():
-        if not product_list_for_category:
-            continue
+    Raises:
+        ProductNotFoundError: If the product doesn't exist
+        PreconditionFailedError: If the ETag doesn't match (concurrent update)
+        DatabaseError: If a database operation fails
+    """
+    # Convert model to dict and exclude unset fields
+    update_dict = updates.model_dump(exclude_unset=True)
 
-        batch_operations: List[Tuple[str, Tuple[Any, ...], Dict[str, Any]]] = []
+    # Don't proceed if there are no changes
+    if not update_dict:
+        raise ValueError("No fields provided for update.")
 
-        product_data_for_batch = []
+    # Add last_updated timestamp
+    update_dict["last_updated"] = datetime.utcnow().isoformat()
 
-        for product_to_create in product_list_for_category:
-            data = product_to_create.model_dump()
-            data["id"] = data.get("id", str(uuid.uuid4()))
-            product_data_for_batch.append(data)  # Store the full data with ID
-            batch_operations.append(("create", (data,), {}))
+    # Create patch operations
+    patch_operations = []
+    for key, value in update_dict.items():
+        if key not in ["id", "category", "_etag"]:
+            patch_operations.append({"op": "set", "path": f"/{key}", "value": value})
 
-        if not batch_operations:
-            continue
+    try:
+        result = await container.patch_item(
+            item=product_id,
+            partition_key=category,
+            patch_operations=patch_operations,
+            headers={"if-match": etag},
+        )
+        return ProductResponse.model_validate(result)
+    except CosmosHttpResponseError as e:
+        if e.status_code == 404:
+            raise ProductNotFoundError(
+                f"Product with ID '{product_id}' and category '{category}' not found"
+            ) from e
+        if e.status_code == 412:  # Precondition Failed (ETag mismatch)
+            raise PreconditionFailedError(
+                f"Product with ID '{product_id}' has been modified since last retrieved (ETag mismatch)."
+            ) from e
+        logger.error(
+            f"Cosmos DB error during product update: Status Code {e.status_code}, Message: {e.message}",
+            exc_info=True,
+        )
+        raise DatabaseError(
+            f"Cosmos DB error during product update: Status Code {e.status_code}, Message: {e.message}",
+            original_exception=e,
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error during product update: {e}", exc_info=True)
+        raise DatabaseError(
+            "An unexpected error occurred during database operation.",
+            original_exception=e,
+        ) from e
 
-        try:
-            batch_results = await container.execute_item_batch(
-                batch_operations=batch_operations, partition_key=category_pk
-            )
 
-            for result_item in batch_results:
-                if isinstance(result_item, dict) and result_item.get("id"):
-                    all_successfully_created_products.append(
-                        ProductRead.model_validate(result_item)
-                    )
-                else:
-                    logger.warning(
-                        f"Unexpected item in successful batch result for category '{category_pk}': {result_item}"
-                    )
+async def delete_product(
+    container: ContainerProxy,
+    product_id: str,
+    category: str,
+) -> None:
+    """
+    Delete a product from the database.
 
-        except CosmosBatchOperationError as e:
-            logger.error(
-                f"Cosmos DB Batch Operation Error for category '{category_pk}': "
-                f"First failed operation index: {e.error_index}. Message: {str(e)}",
-                exc_info=True,
-            )
-            for i, op_response in enumerate(e.operation_responses):
-                attempted_item_id = product_data_for_batch[i].get("id", "unknown_id")
-                if (
-                    op_response.get("statusCode", 200) >= 400
-                ):  # Check if it's an error response
-                    logger.error(
-                        f"  Failed operation in batch for item ID '{attempted_item_id}': {op_response}"
-                    )
-                else:
-                    logger.info(
-                        f"  Operation response (may be pre-failure success) for item ID '{attempted_item_id}': {op_response}"
-                    )
+    Args:
+        container: Cosmos DB container client
+        product_id: ID of the product to delete
+        category: Category of the product (partition key)
 
-        except CosmosHttpResponseError as e_http:
-            logger.error(
-                f"Cosmos DB HTTP error during execute_item_batch for category '{category_pk}': "
-                f"Status Code {e_http.status_code}, Message: {e_http.message}. ",
-                exc_info=True,
-            )
-        except Exception as e_generic:
-            logger.error(
-                f"Unexpected error during execute_item_batch for category '{category_pk}': {e_generic}",
-                exc_info=True,
-            )
-
-    return all_successfully_created_products
+    Raises:
+        ProductNotFoundError: If the product doesn't exist
+        DatabaseError: If a database operation fails
+    """
+    try:
+        await container.delete_item(item=product_id, partition_key=category)
+        return  # Implicit None
+    except CosmosHttpResponseError as e:
+        if e.status_code == 404:
+            raise ProductNotFoundError(
+                f"Product with ID '{product_id}' and category '{category}' not found"
+            ) from e
+        logger.error(
+            f"Cosmos DB error during product deletion: Status Code {e.status_code}, Message: {e.message}",
+            exc_info=True,
+        )
+        raise DatabaseError(
+            f"Cosmos DB error during product deletion: Status Code {e.status_code}, Message: {e.message}",
+            original_exception=e,
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error during product deletion: {e}", exc_info=True)
+        raise DatabaseError(
+            "An unexpected error occurred during database operation.",
+            original_exception=e,
+        ) from e

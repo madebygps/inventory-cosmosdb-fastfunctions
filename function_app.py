@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from azure.cosmos import exceptions as cosmos_exceptions
 
 from inventory_api.routes.product_route import router as product_router
+from inventory_api.routes.product_route_batch import router as product_batch_router
 
 app = FastAPI(
     title="Inventory API",
@@ -35,6 +36,7 @@ async def handle_value_error(_: Request, exc: ValueError):
     return JSONResponse(status_code=400, content={"detail": str(exc)})
 
 app.include_router(product_router)
+app.include_router(product_batch_router)
 
 function_app = func.FunctionApp()
 
