@@ -2,9 +2,11 @@ from azure.cosmos.exceptions import CosmosHttpResponseError
 from azure.cosmos.aio import ContainerProxy
 import uuid
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 from builtins import anext
+
+from pydantic import ValidationError
 
 from inventory_api.models.product import (
     ProductCreate,
@@ -43,40 +45,36 @@ async def list_products(
         items = []
         next_continuation_token = None
 
-        # Get the query iterator
+        # Represents the entire potential result set of the query
         query_iterator = container.query_items(
             query=query, parameters=params, partition_key=category, **query_options
         )
 
-        # Create a page iterator
+        # Mechanism to get page (subset) of total result set at a time
         page_iterator = query_iterator.by_page(continuation_token)
 
-        # Try to get the first page
         try:
-            # Get the first page
-            first_page = await anext(page_iterator)
+            # Get page of items
+            page = await anext(page_iterator)
 
-            # Since AsyncList is not directly iterable, we need to iterate it asynchronously
-            # Convert AsyncList to a regular list
-            page_items = [item async for item in first_page]
+            # Get items in the page
+            page_items = [item async for item in page]
 
             # Process items in the page
             for item in page_items:
                 try:
                     product = ProductResponse.model_validate(item)
                     items.append(product)
-                except Exception as e:
-                    logger.warning(f"Failed to validate product: {e}, item: {item}")
+                except ValidationError as e:
+                    logger.debug(f"Pydantic validation errors: {e.errors()}")
                     continue
 
             # Get continuation token for next page from the page_iterator
             next_continuation_token = page_iterator.continuation_token
 
         except StopAsyncIteration:
-            # No items found with this continuation token
             pass
 
-        # Return the items and continuation token
         return ProductList(items=items, continuation_token=next_continuation_token)
 
     except CosmosHttpResponseError as e:
@@ -116,7 +114,7 @@ async def create_product(
     data = product.model_dump()
     data["id"] = str(uuid.uuid4())
     data["status"] = ProductStatus.ACTIVE.value
-    data["last_updated"] = datetime.utcnow().isoformat()
+    data["last_updated"] = datetime.now(timezone.utc).isoformat()
 
     try:
         result = await container.create_item(body=data)
@@ -211,20 +209,19 @@ async def update_product(
         PreconditionFailedError: If the ETag doesn't match (concurrent update)
         DatabaseError: If a database operation fails
     """
-    # Convert model to dict and exclude unset fields
     update_dict = updates.model_dump(exclude_unset=True)
 
-    # Don't proceed if there are no changes
+    # If no fields are provided for update, raise an error
     if not update_dict:
         raise ValueError("No fields provided for update.")
 
-    # Add last_updated timestamp
-    update_dict["last_updated"] = datetime.utcnow().isoformat()
+    # Update the last_updated field
+    update_dict["last_updated"] = datetime.now(timezone.utc).isoformat()
 
-    # Create patch operations
+    # Create list of patch (set) operations
     patch_operations = []
     for key, value in update_dict.items():
-        if key not in ["id", "category", "_etag"]:
+        if key not in ["id", "category", "_etag"]: # Exclude system fields
             patch_operations.append({"op": "set", "path": f"/{key}", "value": value})
 
     try:
@@ -232,7 +229,7 @@ async def update_product(
             item=product_id,
             partition_key=category,
             patch_operations=patch_operations,
-            headers={"if-match": etag},
+            headers={"if-match": etag}, # ETag for concurrency control
         )
         return ProductResponse.model_validate(result)
     except CosmosHttpResponseError as e:
