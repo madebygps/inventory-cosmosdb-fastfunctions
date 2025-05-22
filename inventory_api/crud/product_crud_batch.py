@@ -4,7 +4,7 @@ from azure.cosmos.exceptions import CosmosHttpResponseError, CosmosBatchOperatio
 from azure.cosmos.aio import ContainerProxy
 import uuid
 from typing import Any, Dict, List, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from inventory_api.models.product import (
@@ -35,11 +35,12 @@ async def create_products(
     """
     if not batch_create.items:
         return []
-
+    # Batch processing requires grouping by partition key (category)
     products_by_category: Dict[str, List[ProductCreate]] = defaultdict(list)
     for product_model in batch_create.items:
         products_by_category[product_model.category].append(product_model)
 
+    # Prepare each category for concurrent processing
     async def process_category_creates(category_pk, product_list_for_category):
         if not product_list_for_category:
             return []
@@ -48,13 +49,16 @@ async def create_products(
         batch_operations_for_db: List[Tuple[str, Tuple[Any, ...], Dict[str, Any]]] = []
         raw_product_data_in_batch = []
 
+        # Add id, status, and last_updated to each product
         for product_to_create in product_list_for_category:
             data = product_to_create.model_dump()
             data["id"] = str(uuid.uuid4())
             data["status"] = ProductStatus.ACTIVE.value
-            data["last_updated"] = datetime.utcnow().isoformat()
+            data["last_updated"] = datetime.now(timezone.utc).isoformat()
             
+            # Add all fields to the batch operation
             raw_product_data_in_batch.append(data)
+            # Add operation for product creation to the batch
             batch_operations_for_db.append(("create", (data,), {}))
 
         if not batch_operations_for_db:
@@ -79,6 +83,7 @@ async def create_products(
                 f"First failed op index: {e.error_index}. Msg: {str(e)}",
                 exc_info=True,
             )
+            # log errors for failed operations
             for i, op_response in enumerate(e.operation_responses):
                 if i < len(raw_product_data_in_batch):
                     attempted_item_id = raw_product_data_in_batch[i].get(
@@ -100,16 +105,20 @@ async def create_products(
             )
         return successfully_created_products
 
+    # schedule tasks to run concurrently for each category
     tasks = [
         asyncio.create_task(process_category_creates(category, items))
         for category, items in products_by_category.items()
     ]
     
+    # Wait for all tasks to complete and gather results
     results = await asyncio.gather(*tasks)
     
-    all_successfully_created_products = [
-        product for category_results in results for product in category_results
-    ]
+    all_successfully_created_products = []
+    
+    for category_product_list in results:
+        for product in category_product_list:
+            all_successfully_created_products.append(product)
     
     return all_successfully_created_products
 
@@ -146,7 +155,7 @@ async def update_products(
         for update_item in update_items_for_category:
             update_dict = update_item.changes.model_dump(exclude_unset=True)
             
-            update_dict["last_updated"] = datetime.utcnow().isoformat()
+            update_dict["last_updated"] = datetime.now(timezone.utc).isoformat()
             
             json_patch_operations = []
             for key, value in update_dict.items():
@@ -219,9 +228,11 @@ async def update_products(
     
     results = await asyncio.gather(*tasks)
     
-    all_successfully_updated_products = [
-        product for category_results in results for product in category_results
-    ]
+    all_successfully_updated_products = []
+    
+    for category_product_list in results:
+        for product in category_product_list:
+            all_successfully_updated_products.append(product)
     
     return all_successfully_updated_products
 
@@ -298,8 +309,10 @@ async def delete_products(
     
     results = await asyncio.gather(*tasks)
     
-    all_successfully_deleted_ids = [
-        id for category_results in results for id in category_results
-    ]
+    all_successfully_deleted_ids = []
+    
+    for category_product_list in results:
+        for id in category_product_list:
+            all_successfully_deleted_ids.append(id)
     
     return all_successfully_deleted_ids
