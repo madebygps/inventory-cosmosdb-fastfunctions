@@ -1,6 +1,11 @@
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Header, Path, Query, status, Depends
-from inventory_api.models.product import ProductList, ProductResponse, ProductCreate, ProductUpdate
+from fastapi import APIRouter, Body, HTTPException, Header, Path, Query, status, Depends
+from inventory_api.models.product import (
+    ProductList,
+    ProductResponse,
+    ProductCreate,
+    ProductUpdate,
+)
 from inventory_api.crud.product_crud import (
     get_product_by_id,
     list_products,
@@ -36,10 +41,10 @@ async def get_products(
 ):
     try:
         return await list_products(
-            container=container, 
-            category=category, 
+            container=container,
+            category=category,
             max_items=limit,
-            continuation_token=continuation_token
+            continuation_token=continuation_token,
         )
     except DatabaseError as e:
         logger.error(f"Database error: {e}", exc_info=e.original_exception)
@@ -55,12 +60,9 @@ async def get_products(
         )
 
 
-
-
-
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def add_new_product(
-    product: ProductCreate,
+     product: ProductCreate = Body(..., description="Product information to create"),
     container: ContainerProxy = Depends(get_products_container),
 ):
     try:
