@@ -205,3 +205,4 @@ output functionAppEndpoint string = 'https://${functionApp.outputs.functionAppNa
 output cosmosDbEndpoint string = cosmosDb.outputs.cosmosEndpoint
 output cosmosDatabaseName string = cosmosDb.outputs.cosmosDatabaseName
 output storageAccountName string = storageAccount.outputs.name
+output appInsightsConnectionString string = appInsights.outputs.connectionString

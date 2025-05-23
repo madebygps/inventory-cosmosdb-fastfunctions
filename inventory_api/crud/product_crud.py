@@ -447,3 +447,51 @@ async def delete_product(
             "An unexpected error occurred during database operation.",
             original_exception=e,
         ) from e
+
+
+async def list_categories(container: ContainerProxy) -> list[str]:
+    with tracer.start_as_current_span('list_categories') as span:
+        logger.info('Listing categories')
+        
+        query = "SELECT DISTINCT c.category FROM c"
+        try:
+            
+            categories = []
+            query_iterator = container.query_items(query=query)
+            
+            async for item in query_iterator:
+                if "category" in item and item ["category"]:
+                    categories.append(item["category"])
+                    
+            count = len(categories)
+            logger.info(f"Retrieved {count} categories", extra={"count": count})
+            span.set_attribute("categories.count", count)
+            return categories
+        except CosmosHttpResponseError as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", "cosmos_http_error")
+            span.set_attribute("error.status_code", e.status_code)
+            
+            logger.error(
+                "Cosmos DB error during category listing",
+                extra={"status_code": e.status_code, "message": e.message},
+                exc_info=True,
+            )
+            raise DatabaseError(
+                f"Cosmos DB error during category listing: Status Code {e.status_code}, Message: {e.message}",
+                original_exception=e,
+            ) from e
+        except Exception as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", type(e).__name__)
+            
+            logger.error(
+                "Unexpected error during category listing", 
+                extra={"error_type": type(e).__name__},
+                exc_info=True
+            )
+            raise DatabaseError(
+                "An unexpected error occurred during database operation.",
+                original_exception=e,
+            ) from e
+            

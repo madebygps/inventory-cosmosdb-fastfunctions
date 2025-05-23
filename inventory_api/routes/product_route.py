@@ -11,7 +11,8 @@ from inventory_api.crud.product_crud import (
     list_products,
     create_product,
     delete_product,
-    update_product
+    update_product,
+    list_categories
 )
 from inventory_api.db import get_container, ContainerType
 from azure.cosmos.aio import ContainerProxy
@@ -33,6 +34,25 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 async def get_products_container() -> ContainerProxy:
     return await get_container(ContainerType.PRODUCTS)
+
+@router.get("/categories", response_model=list[str])
+async def get_categories(container: ContainerProxy = Depends(get_products_container)):
+    try:
+        return await list_categories(container=container)
+    except DatabaseError as e:
+        logger.error(f"Database error: {e}", exc_info=e.original_exception)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="A database error occurred.",
+        )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error retrieving categories: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected internal server error occurred.",
+        )
 
 
 @router.get("/", response_model=ProductList)
@@ -220,4 +240,5 @@ async def get_product(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected internal server error occurred.",
         )
+
 

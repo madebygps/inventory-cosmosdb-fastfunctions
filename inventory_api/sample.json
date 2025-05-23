@@ -3,7 +3,7 @@
     {
       "name": "Wireless Gaming Mouse",
       "description": "High-precision wireless mouse with RGB lighting and 16000 DPI",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 79.99,
       "sku": "WGM-001",
       "quantity": 150
@@ -11,7 +11,7 @@
     {
       "name": "USB-C Hub",
       "description": "7-in-1 USB-C hub with HDMI and power delivery",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 49.99,
       "sku": "UCH-7IN1",
       "quantity": 200
@@ -19,7 +19,7 @@
     {
       "name": "Smartphone Case",
       "description": "Protective case with wireless charging compatibility",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 24.99,
       "sku": "SPC-WIRELESS",
       "quantity": 250
@@ -27,7 +27,7 @@
     {
       "name": "Bluetooth Speaker",
       "description": "Portable waterproof speaker with 12-hour battery",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 59.99,
       "sku": "BS-WATERPROOF-12H",
       "quantity": 100
@@ -35,7 +35,7 @@
     {
       "name": "Wireless Earbuds",
       "description": "True wireless earbuds with active noise cancellation",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 149.99,
       "sku": "WE-ANC-PRO",
       "quantity": 75
@@ -43,7 +43,7 @@
     {
       "name": "4K Webcam",
       "description": "Ultra HD webcam with auto-focus and built-in microphone",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 89.99,
       "sku": "4KW-AUTOFOCUS",
       "quantity": 120
@@ -51,7 +51,7 @@
     {
       "name": "Gaming Mechanical Keyboard",
       "description": "RGB backlit mechanical keyboard with blue switches",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 149.99,
       "sku": "GMK-RGB-BLUE",
       "quantity": 85
@@ -59,7 +59,7 @@
     {
       "name": "Laptop Stand",
       "description": "Adjustable aluminum laptop stand with heat dissipation",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 39.99,
       "sku": "LS-ALUMINUM-ADJ",
       "quantity": 180
@@ -67,7 +67,7 @@
     {
       "name": "Power Bank",
       "description": "20000mAh portable charger with fast charging and LED display",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 39.99,
       "sku": "PB-20000-LED",
       "quantity": 300
@@ -75,7 +75,7 @@
     {
       "name": "Smart Watch",
       "description": "Fitness tracking smartwatch with heart rate monitor",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 199.99,
       "sku": "SW-FITNESS-HR",
       "quantity": 90
@@ -83,7 +83,7 @@
     {
       "name": "HDMI Cable",
       "description": "8K Ultra High Speed HDMI cable - 6 feet",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 19.99,
       "sku": "HDMI-8K-6FT",
       "quantity": 500
@@ -91,7 +91,7 @@
     {
       "name": "Wireless Charger",
       "description": "15W fast wireless charging pad with LED indicator",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 29.99,
       "sku": "WC-15W-LED",
       "quantity": 220
@@ -99,7 +99,7 @@
     {
       "name": "USB Flash Drive",
       "description": "128GB USB 3.0 flash drive with metal casing",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 24.99,
       "sku": "UFD-128GB-METAL",
       "quantity": 400
@@ -107,7 +107,7 @@
     {
       "name": "Bluetooth Headphones",
       "description": "Over-ear wireless headphones with 30-hour battery",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 99.99,
       "sku": "BH-OVEREAR-30H",
       "quantity": 65
@@ -115,7 +115,7 @@
     {
       "name": "Phone Screen Protector",
       "description": "Tempered glass screen protector with easy installation",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 12.99,
       "sku": "PSP-TEMPERED-EASY",
       "quantity": 600
@@ -123,7 +123,7 @@
     {
       "name": "Gaming Headset",
       "description": "Professional gaming headset with surround sound",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 79.99,
       "sku": "GH-SURROUND-PRO",
       "quantity": 110
@@ -131,7 +131,7 @@
     {
       "name": "Tablet Stand",
       "description": "Adjustable tablet stand for desk or bed use",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 22.99,
       "sku": "TS-ADJUSTABLE-DESK",
       "quantity": 190
@@ -139,7 +139,7 @@
     {
       "name": "Car Charger",
       "description": "Dual USB car charger with fast charging capability",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 16.99,
       "sku": "CC-DUAL-FAST",
       "quantity": 350
@@ -147,7 +147,7 @@
     {
       "name": "LED Desk Lamp",
       "description": "Adjustable LED desk lamp with USB charging port",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 34.99,
       "sku": "LDL-ADJUSTABLE-USB",
       "quantity": 140
@@ -155,7 +155,7 @@
     {
       "name": "External SSD",
       "description": "1TB portable SSD with USB-C and USB-A compatibility",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 129.99,
       "sku": "ESSD-1TB-USBC",
       "quantity": 80
@@ -163,7 +163,7 @@
     {
       "name": "Digital Camera",
       "description": "24MP digital camera with 4K video recording",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 399.99,
       "sku": "DC-24MP-4K",
       "quantity": 25
@@ -171,7 +171,7 @@
     {
       "name": "Monitor Stand",
       "description": "Dual monitor arm stand with full articulation",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 89.99,
       "sku": "MS-DUAL-ARTICULATE",
       "quantity": 60
@@ -179,7 +179,7 @@
     {
       "name": "Smart Doorbell",
       "description": "WiFi video doorbell with motion detection",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 159.99,
       "sku": "SD-WIFI-MOTION",
       "quantity": 45
@@ -187,7 +187,7 @@
     {
       "name": "Portable Monitor",
       "description": "15.6 inch portable USB-C monitor for laptops",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 199.99,
       "sku": "PM-156-USBC",
       "quantity": 35
@@ -195,7 +195,7 @@
     {
       "name": "Streaming Microphone",
       "description": "USB condenser microphone for podcasting and streaming",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 69.99,
       "sku": "SM-USB-CONDENSER",
       "quantity": 95
@@ -203,7 +203,7 @@
     {
       "name": "Router",
       "description": "WiFi 6 wireless router with gigabit ethernet",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 149.99,
       "sku": "R-WIFI6-GIGABIT",
       "quantity": 55
@@ -211,7 +211,7 @@
     {
       "name": "Smart Light Bulb",
       "description": "Color-changing smart LED bulb with app control",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 19.99,
       "sku": "SLB-COLOR-APP",
       "quantity": 280
@@ -219,7 +219,7 @@
     {
       "name": "Action Camera",
       "description": "4K action camera with waterproof case",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 129.99,
       "sku": "AC-4K-WATERPROOF",
       "quantity": 70
@@ -227,7 +227,7 @@
     {
       "name": "Ethernet Cable",
       "description": "Cat 8 ethernet cable - 25 feet for high-speed internet",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 14.99,
       "sku": "EC-CAT8-25FT",
       "quantity": 320
@@ -235,7 +235,7 @@
     {
       "name": "Drone",
       "description": "Compact drone with 4K camera and GPS",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 299.99,
       "sku": "D-COMPACT-4K-GPS",
       "quantity": 20
@@ -243,7 +243,7 @@
     {
       "name": "Smart Thermostat",
       "description": "WiFi programmable thermostat with energy saving features",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 179.99,
       "sku": "ST-WIFI-ENERGY",
       "quantity": 40
@@ -251,7 +251,7 @@
     {
       "name": "Graphics Tablet",
       "description": "Digital drawing tablet with pressure sensitivity",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 89.99,
       "sku": "GT-PRESSURE-DIGITAL",
       "quantity": 85
@@ -259,7 +259,7 @@
     {
       "name": "Security Camera",
       "description": "1080p WiFi security camera with night vision",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 79.99,
       "sku": "SC-1080P-NIGHT",
       "quantity": 120
@@ -267,7 +267,7 @@
     {
       "name": "VR Headset",
       "description": "Virtual reality headset for immersive gaming",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 399.99,
       "sku": "VR-IMMERSIVE-GAMING",
       "quantity": 15
@@ -275,7 +275,7 @@
     {
       "name": "Smart Plug",
       "description": "WiFi smart plug with voice control compatibility",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 12.99,
       "sku": "SP-WIFI-VOICE",
       "quantity": 450
@@ -283,7 +283,7 @@
     {
       "name": "Bluetooth Adapter",
       "description": "USB Bluetooth 5.0 adapter for PC and laptop",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 16.99,
       "sku": "BA-USB-50",
       "quantity": 200
@@ -291,7 +291,7 @@
     {
       "name": "Gaming Controller",
       "description": "Wireless gaming controller with vibration feedback",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 59.99,
       "sku": "GC-WIRELESS-VIBRATE",
       "quantity": 130
@@ -299,7 +299,7 @@
     {
       "name": "Smart Speaker",
       "description": "Voice-activated smart speaker with premium sound",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 99.99,
       "sku": "SS-VOICE-PREMIUM",
       "quantity": 85
@@ -307,7 +307,7 @@
     {
       "name": "Laptop Cooling Pad",
       "description": "Cooling pad with 6 fans and LED lighting",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 34.99,
       "sku": "LCP-6FAN-LED",
       "quantity": 160
@@ -315,7 +315,7 @@
     {
       "name": "Memory Card",
       "description": "64GB microSD card with adapter - Class 10",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 18.99,
       "sku": "MC-64GB-CLASS10",
       "quantity": 380
@@ -323,7 +323,7 @@
     {
       "name": "Keyboard and Mouse Combo",
       "description": "Wireless keyboard and mouse combo with nano receiver",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 44.99,
       "sku": "KMC-WIRELESS-NANO",
       "quantity": 115
@@ -331,7 +331,7 @@
     {
       "name": "Phone Tripod",
       "description": "Flexible phone tripod with remote control",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 21.99,
       "sku": "PT-FLEXIBLE-REMOTE",
       "quantity": 240
@@ -339,7 +339,7 @@
     {
       "name": "Digital Photo Frame",
       "description": "10-inch WiFi digital photo frame with cloud sync",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 129.99,
       "sku": "DPF-10IN-WIFI",
       "quantity": 50
@@ -347,7 +347,7 @@
     {
       "name": "Cable Management Box",
       "description": "Large cable organizer box with multiple slots",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 26.99,
       "sku": "CMB-LARGE-MULTI",
       "quantity": 175
@@ -355,7 +355,7 @@
     {
       "name": "Smart Scale",
       "description": "Digital bathroom scale with body composition analysis",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 49.99,
       "sku": "SS-DIGITAL-BODY",
       "quantity": 90
@@ -363,7 +363,7 @@
     {
       "name": "Ring Light",
       "description": "18-inch LED ring light with tripod stand",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 79.99,
       "sku": "RL-18IN-TRIPOD",
       "quantity": 105
@@ -371,7 +371,7 @@
     {
       "name": "Surge Protector",
       "description": "12-outlet surge protector with USB charging ports",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 39.99,
       "sku": "SP-12OUTLET-USB",
       "quantity": 140
@@ -379,7 +379,7 @@
     {
       "name": "Bluetooth Tracker",
       "description": "Small Bluetooth tracker for keys and valuables",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 24.99,
       "sku": "BT-SMALL-KEYS",
       "quantity": 300
@@ -387,7 +387,7 @@
     {
       "name": "Projector",
       "description": "Portable mini projector with WiFi connectivity",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 189.99,
       "sku": "P-MINI-WIFI",
       "quantity": 30
@@ -395,7 +395,7 @@
     {
       "name": "E-Reader",
       "description": "6-inch e-ink e-reader with backlight and waterproof design",
-      "category": "Electronics",
+      "category": "electronics",
       "price": 119.99,
       "sku": "ER-6IN-WATERPROOF",
       "quantity": 65
