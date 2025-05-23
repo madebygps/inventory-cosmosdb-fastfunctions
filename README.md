@@ -4,29 +4,21 @@
 
 This project implements an inventory management system using Azure Cosmos DB as the database backend, FastAPI for API development, and deployed as serverless Azure Functions.
 
-## Commands (Writes)
+## Features
 
-- Add a new product
-- Update a product's details
-- Add a new store location
-- Update location info
-- Adjust inventory quantity at a location
-- Delete products or locations
-
-## Queries (Reads)
-
-- Get product by ID
-- List products by category
-- Get inventory of a product at a store
-- List low-stock items at a location
-- Get all locations
+- **Product Management**: Create, read, update, and delete product information
+- **Batch Operations**: Perform operations on multiple products simultaneously
+- **Pagination**: Retrieve products in manageable chunks with continuation tokens
+- **Optimistic Concurrency**: Prevent conflicts using ETags for updates
+- **Partition-aware Operations**: Efficient database access with category-based partitioning
 
 ## Architecture
 
 - **Azure Functions**: Serverless compute for hosting the API endpoints
 - **FastAPI**: Modern, fast web framework for building APIs
-- **Azure Cosmos DB**: NoSQL database for storing inventory data
-- **Python**: Primary programming language
+- **Azure Cosmos DB**: NoSQL database for storing product data
+- **Azure Identity**: Secure access using DefaultAzureCredential
+- **Python**: Primary programming language (3.8+)
 
 ## Prerequisites
 
@@ -37,20 +29,17 @@ This project implements an inventory management system using Azure Cosmos DB as 
 - Azure Developer CLI (azd) for simplified deployment
 - Azure Cosmos DB account or Cosmos DB Emulator for local development
 - Visual Studio Code with Azure Functions extension (recommended)
-- Azure Developer CLI
 
 ## Setup and Development
-
-> **IMPORTANT**: You must deploy the Azure infrastructure (using `azd up`) or set up the Cosmos DB emulator BEFORE attempting to run the application locally. This ensures you have a Cosmos DB account to connect to.
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/madebygps/functions-cosmos-inventory.git
-cd functions-cosmos-inventory
+git clone https://github.com/your-username/inventory-cosmosdb-fastfunctions.git
+cd inventory-cosmosdb-fastfunctions
 ```
 
-### 1. Deploy Azure Resources with AZD
+### 2. Deploy Azure Resources with AZD
 
 ```bash
 # Login to Azure
@@ -60,7 +49,7 @@ azd auth login
 azd up
 ```
 
-### 1. Create a virtual environment and install dependencies
+### 3. Create a virtual environment and install dependencies
 
 ```bash
 python -m venv venv
@@ -68,10 +57,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 1. Grant your user principal access to the Cosmos DB account
+### 4. Grant your user principal access to the Cosmos DB account
 
 ```bash
-# Use the script provided in cosmosdb_access.sh
 az cosmosdb sql role assignment create \
   --account-name <your-deployed-cosmos-account-name> \
   --resource-group <your-resource-group> \
@@ -80,17 +68,13 @@ az cosmosdb sql role assignment create \
   --role-definition-id "00000000-0000-0000-0000-000000000002"
 ```
 
-You can find the values to these in the .azure folder
-
-### 1. Configure local settings
+### 5. Configure local settings
 
 ```bash
-cp local-sample.settings.json local.settings.json
+cp local.settings.sample.json local.settings.json
 ```
 
 Update `local.settings.json` with your Azure Cosmos DB information:
-
-#### If using Azure Cosmos DB
 
 ```json
 {
@@ -101,70 +85,89 @@ Update `local.settings.json` with your Azure Cosmos DB information:
     "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
     "COSMOSDB_ENDPOINT": "YOUR_DEPLOYED_COSMOS_DB_ENDPOINT",
     "COSMOSDB_DATABASE": "inventory",
-    "COSMOSDB_CONTAINER": "items"
+    "COSMOSDB_CONTAINER_PRODUCTS": "products"
   }
 }
 ```
 
-#### If using Cosmos DB Emulator
-
-```json
-{
-  "IsEncrypted": false,
-  "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
-    "FUNCTIONS_WORKER_RUNTIME": "python",
-    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
-    "COSMOSDB_ENDPOINT": "https://localhost:8081",
-    "COSMOSDB_KEY": "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==",
-    "COSMOSDB_DATABASE": "inventory",
-    "COSMOSDB_CONTAINER": "items"
-  }
-}
-```
-
-If using the emulator, you'll need to modify `service/dependency.py` to use a connection key instead of RBAC.
-
-### 1. Run the function locally
+### 6. Run the function locally
 
 ```bash
 func start
 ```
 
-Alternatively, in VS Code, press F5 or use the Azure Functions extension to start debugging.
-
-### 1. Load sample data (optional)
-
-```bash
-python load_data.py
-```
-
 ## API Endpoints
 
-- `POST /api/item`: Create a new inventory item
-- `GET /api/items`: List all inventory items
-  - Query parameter: `category` (optional) - Filter by category
-- `GET /api/item/{item_id}`: Get an item by ID
-  - Query parameter: `category` (required) - The category of the item
-- `PUT /api/item/{item_id}`: Update an existing item
-- `DELETE /api/item/{item_id}`: Delete an item
-  - Query parameter: `category` (required) - The category of the item
+### Product Management
+
+- **GET /products/**
+  - List products by category with pagination
+  - Query parameters:
+    - `category`: Category to filter by (required)
+    - `continuation_token`: Token for pagination (optional)
+    - `limit`: Maximum items to return (default: 50)
+
+- **GET /products/{product_id}**
+  - Get a specific product
+  - Query parameters:
+    - `category`: Category of the product (required)
+
+- **POST /products/**
+  - Create a new product
+  - Body: Product details
+
+- **PATCH /products/{product_id}**
+  - Update a product
+  - Query parameters:
+    - `category`: Category of the product (required)
+  - Headers:
+    - `If-Match`: ETag for optimistic concurrency
+  - Body: Fields to update
+
+- **DELETE /products/{product_id}**
+  - Delete a product
+  - Query parameters:
+    - `category`: Category of the product (required)
+
+### Batch Operations
+
+- **POST /products/batch/**
+  - Create multiple products in a single operation
+  - Body: List of products to create
+
+- **PATCH /products/batch/**
+  - Update multiple products in a single operation
+  - Body: List of products with their ETags and changes
+
+- **DELETE /products/batch/**
+  - Delete multiple products in a single operation
+  - Body: List of product IDs and categories to delete
 
 ## Data Model
 
-Inventory items follow this schema:
+### Product
 
 ```python
 {
-    "id": "string", # UUID, auto-generated if not provided
-    "name": "string", # Required
-    "category": "string", # Required - Used as partition key
-    "description": "string", # Optional
-    "quantity": int, # Default: 0
-    "price": float, # Required
-    "tags": ["string"], # Optional list of tags
-    "status": "string", # in_stock, low_stock, or out_of_stock
-    "created_at": "datetime", # Auto-generated
-    "updated_at": "datetime" # Auto-updated on PUT requests
+    "id": "string",  # UUID, auto-generated
+    "name": "string",  # Required
+    "description": "string",  # Optional
+    "category": "string",  # Required - Used as partition key
+    "price": float,  # Required
+    "sku": "string",  # Required - Stock keeping unit
+    "quantity": int,  # Default: 0
+    "status": "string",  # "active" or "inactive"
+    "last_updated": "datetime"  # Auto-updated timestamp
 }
 ```
+
+## API Documentation
+
+The API includes Swagger documentation available at the `/docs` endpoint when running locally or in Azure.
+
+## Security
+
+- API authentication is implemented using Azure Functions authentication
+- API keys can be provided via:
+  - Header: `x-functions-key`
+  - Query parameter: `code`

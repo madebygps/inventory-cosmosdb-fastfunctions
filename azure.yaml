@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-name: fastapi-on-azure-functions
+name: functions-quickstart-python-azd
 metadata:
-  template: fastapi-on-azure-functions@0.0.1-beta
+  template: functions-quickstart-python-azd@1.0.1
 services:
   api:
     project: .
-    language: py
+    language: python
     host: function

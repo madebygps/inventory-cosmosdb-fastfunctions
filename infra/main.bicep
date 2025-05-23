@@ -14,12 +14,6 @@ param skipRoleAssignment bool = true
 @description('Resource Group name (if empty, a default will be used)')
 param resourceGroupName string = ''
 
-@description('Enable VNet integration (and private endpoints)')
-param vnetEnabled bool = false
-
-@description('Custom VNet name (optional, defaulted below)')
-param vNetName string = ''
-
 @description('Custom Storage Account name (optional)')
 param storageAccountName string = ''
 
@@ -163,8 +157,6 @@ module functionApp 'core/host/functions.bicep' = {
       cosmosDbEndpoint: cosmosDb.outputs.cosmosEndpoint
       cosmosDbDatabase: cosmosDb.outputs.cosmosDatabaseName
       cosmosDbProductsContainer: cosmosDb.outputs.productsContainerName
-      cosmosDbLocationsContainer: cosmosDb.outputs.locationsContainerName
-      cosmosDbInventoryItemsContainer: cosmosDb.outputs.inventoryItemsContainerName
     }
 }
 
@@ -202,31 +194,7 @@ module blobRoleAssign 'core/storage/blob-role-assignment.bicep' = if (!skipRoleA
   }
 }
 
-// ───────────────────────────
-// (Optional) VNet and Private Endpoint for Storage
-// ───────────────────────────
-module vnetModule 'core/network/vnet.bicep' = if (vnetEnabled) {
-  name: 'vnet'
-  scope: rg
-  params: {
-    location: location
-    tags: tags
-    vNetName: empty(vNetName) ? '${prefix}-vnet' : vNetName
-  }
-}
 
-module privateEndpoint 'core/network/storage-PrivateEndpoint.bicep' = if (vnetEnabled) {
-  name: 'storagePE'
-  scope: rg
-  params: {
-    virtualNetworkName: empty(vNetName) ? '${prefix}-vnet' : vNetName
-    subnetName: vnetEnabled ? vnetModule.outputs.peSubnetName : ''
-    resourceName: storageAccount.outputs.name
-    enableBlob: true
-    enableQueue: false
-    enableTable: false
-  }
-}
 
 // ───────────────────────────
 // Outputs

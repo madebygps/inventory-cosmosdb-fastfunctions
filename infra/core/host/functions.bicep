@@ -28,10 +28,6 @@ param cosmosDbEndpoint string
 param cosmosDbDatabase string
 @description('Products container name in Cosmos DB')
 param cosmosDbProductsContainer string
-@description('Locations container name in Cosmos DB')
-param cosmosDbLocationsContainer string
-@description('Inventory items container name in Cosmos DB')
-param cosmosDbInventoryItemsContainer string
 
 @description('Runtime language for the Function App')
 @allowed(['dotnet-isolated', 'python', 'java', 'node', 'powerShell'])
@@ -103,10 +99,17 @@ resource flexFuncApp 'Microsoft.Web/sites@2024-04-01' = {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
         }
-        
         {
           name: 'PYTHON_ENABLE_WORKER_EXTENSIONS'
           value: '1'
+        }
+        {
+          name: 'OTEL_LOGS_EXPORTER'
+          value: 'none'
+        }
+        {
+          name: 'APPLICATIONINSIGHTS_ENABLE_DEPENDENCY_CORRELATION'
+          value: 'true'
         }
         {
           name: 'COSMOSDB_ENDPOINT'
@@ -119,14 +122,6 @@ resource flexFuncApp 'Microsoft.Web/sites@2024-04-01' = {
         {
           name: 'COSMOSDB_CONTAINER_PRODUCTS'
           value: cosmosDbProductsContainer
-        }
-        {
-          name: 'COSMOSDB_CONTAINER_LOCATIONS'
-          value: cosmosDbLocationsContainer
-        }
-        {
-          name: 'COSMOSDB_CONTAINER_INVENTORY'
-          value: cosmosDbInventoryItemsContainer
         }
       ]
      

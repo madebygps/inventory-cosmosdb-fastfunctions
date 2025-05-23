@@ -1,17 +1,17 @@
 from typing import Optional
 from fastapi import APIRouter, Body, HTTPException, Header, Path, Query, status, Depends
 from inventory_api.models.product import (
-    ProductList,
-    ProductResponse,
     ProductCreate,
+    ProductList,
     ProductUpdate,
+    ProductResponse
 )
 from inventory_api.crud.product_crud import (
     get_product_by_id,
     list_products,
     create_product,
     delete_product,
-    update_product,
+    update_product
 )
 from inventory_api.db import get_container, ContainerType
 from azure.cosmos.aio import ContainerProxy
@@ -20,10 +20,13 @@ from inventory_api.exceptions import (
     PreconditionFailedError,
     ProductNotFoundError,
     ProductAlreadyExistsError,
-    DatabaseError,
+    DatabaseError
 )
 
-from inventory_api.logging_config import logger
+from inventory_api.logging_config import tracer, get_child_logger
+
+# Create a child logger for this module
+logger = get_child_logger("routes.product")
 
 router = APIRouter(prefix="/products", tags=["products"])
 
@@ -39,30 +42,68 @@ async def get_products(
     limit: int = Query(50, title="Maximum number of items to return"),
     container: ContainerProxy = Depends(get_products_container),
 ):
-    try:
-        return await list_products(
-            container=container,
-            category=category,
-            max_items=limit,
-            continuation_token=continuation_token,
+    with tracer.start_as_current_span("api_get_products") as span:
+        span.set_attribute("category", category)
+        span.set_attribute("limit", limit)
+        span.set_attribute("has_continuation_token", continuation_token is not None)
+        
+        logger.info(
+            "Handling GET /products request",
+            extra={
+                "category": category,
+                "limit": limit,
+                "has_continuation_token": continuation_token is not None
+            }
         )
-    except DatabaseError as e:
-        logger.error(f"Database error: {e}", exc_info=e.original_exception)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="A database error occurred.",
-        )
-    except Exception as e:
-        logger.error(f"Unexpected error listing products: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected internal server error occurred.",
-        )
+        
+        try:
+            result = await list_products(
+                container=container,
+                category=category,
+                max_items=limit,
+                continuation_token=continuation_token,
+            )
+            
+            span.set_attribute("products.count", len(result.items))
+            span.set_attribute("has_more_results", result.continuation_token is not None)
+            
+            logger.info(
+                f"Successfully retrieved {len(result.items)} products",
+                extra={"count": len(result.items)}
+            )
+            
+            return result
+        except DatabaseError as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", "database_error")
+            
+            logger.error(
+                "Database error during product listing",
+                extra={"error": str(e), "category": category},
+                exc_info=e.original_exception
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="A database error occurred.",
+            )
+        except Exception as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", type(e).__name__)
+            
+            logger.error(
+                "Unexpected error during product listing",
+                extra={"error": str(e), "error_type": type(e).__name__, "category": category},
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected internal server error occurred.",
+            )
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
 async def add_new_product(
-     product: ProductCreate = Body(..., description="Product information to create"),
+    product: ProductCreate = Body(..., description="Product information to create"),
     container: ContainerProxy = Depends(get_products_container),
 ):
     try:

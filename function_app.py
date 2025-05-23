@@ -1,4 +1,3 @@
-import logging
 
 import azure.functions as func
 from fastapi import (
@@ -13,6 +12,7 @@ from azure.cosmos import exceptions as cosmos_exceptions
 from fastapi.security import APIKeyHeader, APIKeyQuery
 from fastapi.openapi.docs import get_swagger_ui_html
 
+from inventory_api.logging_config import logger, tracer
 from inventory_api.routes.product_route import router as product_router
 from inventory_api.routes.product_route_batch import router as product_batch_router
 
@@ -136,20 +136,37 @@ async def check_api_key_for_docs(request: Request, call_next):
 
 @app.exception_handler(cosmos_exceptions.CosmosHttpResponseError)
 async def handle_cosmos_http_error(
-    _: Request, exc: cosmos_exceptions.CosmosHttpResponseError
+    request: Request, exc: cosmos_exceptions.CosmosHttpResponseError
 ):
-    if exc.status_code in (401, 403):
-        return JSONResponse(
-            status_code=exc.status_code,
-            content={
-                "detail": "Unauthorized" if exc.status_code == 401 else "Forbidden"
-            },
+    with tracer.start_as_current_span("handle_cosmos_error") as span:
+        span.set_attribute("error", True)
+        span.set_attribute("error.type", "cosmos_http_error")
+        span.set_attribute("error.status_code", exc.status_code)
+        
+        if exc.status_code in (401, 403):
+            logger.warning(
+                "Cosmos DB authentication error", 
+                extra={"status_code": exc.status_code, "path": request.url.path}
+            )
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "detail": "Unauthorized" if exc.status_code == 401 else "Forbidden"
+                },
+            )
+        
+        logger.error(
+            "Cosmos DB HTTP error", 
+            extra={
+                "status_code": exc.status_code, 
+                "message": str(exc),
+                "path": request.url.path
+            }
         )
-    logging.error(f"Cosmos DB HTTP error: {exc}")
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": str(exc)},
-    )
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={"detail": str(exc)},
+        )
 
 
 @app.exception_handler(ValueError)
@@ -166,4 +183,36 @@ function_app = func.FunctionApp()
 @function_app.route(route="{*route}", auth_level=func.AuthLevel.FUNCTION)
 async def main(req: func.HttpRequest) -> func.HttpResponse:
     """Azure Functions entry‑point routed through FastAPI."""
-    return await func.AsgiMiddleware(app).handle_async(req)
+    with tracer.start_as_current_span("process_request") as span:
+        # Add request details to span for better tracing
+        span.set_attribute("http.method", req.method)
+        span.set_attribute("http.url", str(req.url))
+        span.set_attribute("http.route", req.route_params.get('route', ''))
+        
+        logger.info(
+            f"Processing {req.method} request",
+            extra={
+                "method": req.method,
+                "path": str(req.url),
+                "query_params": dict(req.params),
+                "route": req.route_params.get('route', '')
+            }
+        )
+        
+        try:
+            response = await func.AsgiMiddleware(app).handle_async(req)
+            span.set_attribute("http.status_code", response.status_code)
+            return response
+        except Exception as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", type(e).__name__)
+            span.set_attribute("error.message", str(e))
+            
+            logger.error(
+                f"Error processing request: {str(e)}",
+                extra={"error_type": type(e).__name__}
+            )
+            return func.HttpResponse(
+                body=str(e),
+                status_code=500
+            )

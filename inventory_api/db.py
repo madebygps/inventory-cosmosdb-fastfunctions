@@ -7,8 +7,6 @@ from enum import Enum
 
 class ContainerType(str, Enum):
     PRODUCTS = "products" 
-    LOCATIONS = "locations"
-    INVENTORY = "inventory"
 
 _client: Optional[CosmosClient] = None
 _credential: Optional[DefaultAzureCredential] = None
@@ -17,8 +15,6 @@ COSMOSDB_ENDPOINT = os.environ["COSMOSDB_ENDPOINT"]
 DATABASE_NAME = os.environ["COSMOSDB_DATABASE"]
 CONTAINERS = {
     "products": os.environ["COSMOSDB_CONTAINER_PRODUCTS"],
-    "locations": os.environ["COSMOSDB_CONTAINER_LOCATIONS"],
-    "inventory": os.environ["COSMOSDB_CONTAINER_INVENTORY"]
 }
 
 async def _ensure_client() -> CosmosClient:

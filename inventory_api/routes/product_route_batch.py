@@ -15,7 +15,10 @@ from inventory_api.db import get_container, ContainerType
 from azure.cosmos.aio import ContainerProxy
 
 from inventory_api.exceptions import DatabaseError
-from inventory_api.logging_config import logger
+from inventory_api.logging_config import get_child_logger, tracer
+
+# Create a child logger for this module
+logger = get_child_logger("routes.product_batch")
 
 router = APIRouter(prefix="/products/batch", tags=["product-batch"])
 
@@ -29,22 +32,74 @@ async def add_products_batch(
     batch_create: ProductBatchCreate,
     container: ContainerProxy = Depends(get_products_container),
 ):
-    try:
-        return await create_products(container=container, batch_create=batch_create)
-    except DatabaseError as e:
-        logger.error(f"Database error: {e}", exc_info=e.original_exception)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="A database error occurred.",
+    with tracer.start_as_current_span("api_add_products_batch") as span:
+        batch_size = len(batch_create.items)
+        span.set_attribute("batch.size", batch_size)
+        
+        # Track categories in the batch
+        categories = set(item.category for item in batch_create.items)
+        span.set_attribute("batch.categories_count", len(categories))
+        
+        logger.info(
+            f"Handling batch create request for {batch_size} products",
+            extra={
+                "batch_size": batch_size,
+                "categories": list(categories)
+            }
         )
-    except Exception as e:
-        logger.error(
-            f"Unexpected error during batch product creation: {e}", exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected internal server error occurred.",
-        )
+        
+        try:
+            result = await create_products(container=container, batch_create=batch_create)
+            
+            # Log success with metrics
+            success_count = len(result)
+            span.set_attribute("batch.success_count", success_count)
+            span.set_attribute("batch.success_rate", success_count / batch_size if batch_size > 0 else 1.0)
+            
+            logger.info(
+                f"Successfully created {success_count}/{batch_size} products",
+                extra={
+                    "success_count": success_count,
+                    "batch_size": batch_size,
+                    "success_rate": success_count / batch_size if batch_size > 0 else 1.0
+                }
+            )
+            
+            return result
+        except DatabaseError as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", "database_error")
+            
+            logger.error(
+                "Database error during batch product creation",
+                extra={
+                    "error": str(e),
+                    "batch_size": batch_size,
+                    "categories": list(categories)
+                },
+                exc_info=e.original_exception
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="A database error occurred.",
+            )
+        except Exception as e:
+            span.set_attribute("error", True)
+            span.set_attribute("error.type", type(e).__name__)
+            
+            logger.error(
+                "Unexpected error during batch product creation",
+                extra={
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "batch_size": batch_size
+                },
+                exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An unexpected internal server error occurred.",
+            )
 
 
 @router.patch("/", response_model=List[ProductResponse])
