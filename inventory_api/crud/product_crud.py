@@ -28,6 +28,19 @@ from inventory_api.logging_config import get_child_logger, tracer
 logger = get_child_logger("crud.product")
 
 
+def normalize_category(category: str) -> str:
+    """
+    Normalize category for case-insensitive operations.
+    
+    Args:
+        category: The original category string
+        
+    Returns:
+        Normalized category string (lowercase)
+    """
+    return category.lower().strip()
+
+
 async def list_products(
     container: ContainerProxy,
     category: str,
@@ -51,8 +64,11 @@ async def list_products(
             }
         )
         
-        query = "SELECT * FROM c WHERE c.category = @category"
-        params = [{"name": "@category", "value": category}]
+        # Normalize category for case-insensitive search
+        normalized_category = normalize_category(category)
+        
+        query = "SELECT * FROM c WHERE UPPER(c.category) = UPPER(@category)"
+        params = [{"name": "@category", "value": normalized_category}]
 
         # Create query options dictionary
         query_options = {"max_item_count": max_items}
@@ -157,6 +173,9 @@ async def create_product(
         data["status"] = ProductStatus.ACTIVE.value
         data["last_updated"] = datetime.now(timezone.utc).isoformat()
         
+        # Normalize category for consistent storage
+        data["category"] = normalize_category(data["category"])
+        
         # Add attributes to span for tracing
         span.set_attribute("product.id", data["id"])
         span.set_attribute("product.category", data["category"])
@@ -244,17 +263,20 @@ async def get_product_by_id(
         DatabaseError: If a database operation fails
     """
     with tracer.start_as_current_span("get_product_by_id") as span:
+        # Normalize category for consistent lookup
+        normalized_category = normalize_category(category)
+        
         # Add attributes to span for tracing
         span.set_attribute("product.id", product_id)
-        span.set_attribute("product.category", category)
+        span.set_attribute("product.category", normalized_category)
         
         logger.info(
             "Retrieving product by ID",
-            extra={"product_id": product_id, "category": category}
+            extra={"product_id": product_id, "category": normalized_category}
         )
         
         try:
-            item = await container.read_item(item=product_id, partition_key=category)
+            item = await container.read_item(item=product_id, partition_key=normalized_category)
             logger.info(
                 "Product retrieved successfully",
                 extra={"product_id": product_id, "category": category}
@@ -338,6 +360,9 @@ async def update_product(
     if not update_dict:
         raise ValueError("No fields provided for update.")
 
+    # Normalize category for consistent lookup
+    normalized_category = normalize_category(category)
+
     # Update the last_updated field
     update_dict["last_updated"] = datetime.now(timezone.utc).isoformat()
 
@@ -350,7 +375,7 @@ async def update_product(
     try:
         result = await container.patch_item(
             item=product_id,
-            partition_key=category,
+            partition_key=normalized_category,
             patch_operations=patch_operations,
             headers={"if-match": etag}, # ETag for concurrency control
         )
@@ -397,8 +422,11 @@ async def delete_product(
         ProductNotFoundError: If the product doesn't exist
         DatabaseError: If a database operation fails
     """
+    # Normalize category for consistent lookup
+    normalized_category = normalize_category(category)
+    
     try:
-        await container.delete_item(item=product_id, partition_key=category)
+        await container.delete_item(item=product_id, partition_key=normalized_category)
         return  # Implicit None
     except CosmosHttpResponseError as e:
         if e.status_code == 404:

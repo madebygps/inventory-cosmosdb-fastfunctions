@@ -114,7 +114,7 @@ Click on the Authorize button and enter the apikey as the value. Locally an actu
 
 ## Accessing the deployed API
 
-Once the application is deployed to Azure, you can access the API endpoints directly from the Azure portal or using tools like Postman or curl. 
+Once the application is deployed to Azure, you can access the API endpoints directly from the Azure portal or using tools like Postman or curl.
 
 You can also access the swagger UI for the deployed function app at:
 
@@ -124,7 +124,6 @@ https://<your-function-app-name>.azurewebsites.net/api/docs?code=apikey
 
 Replace `<your-function-app-name>` with the name of your Azure Function App.
 Replace `apikey` with the actual API key if required, this is the function key generated during deployment. You can find it in the Azure portal under the "Functions" section of your Function App.
-
 
 ## Development Workflow
 

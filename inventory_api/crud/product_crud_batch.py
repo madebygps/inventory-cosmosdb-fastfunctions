@@ -19,6 +19,18 @@ from inventory_api.models.product import (
 
 logger = logging.getLogger(__name__)
 
+def normalize_category(category: str) -> str:
+    """
+    Normalize category for case-insensitive operations.
+    
+    Args:
+        category: The original category string
+        
+    Returns:
+        Normalized category string (lowercase)
+    """
+    return category.lower().strip()
+
 async def create_products(
     container: ContainerProxy,
     batch_create: ProductBatchCreate,
@@ -38,7 +50,7 @@ async def create_products(
     # Batch processing requires grouping by partition key (category)
     products_by_category: Dict[str, List[ProductCreate]] = defaultdict(list)
     for product_model in batch_create.items:
-        products_by_category[product_model.category].append(product_model)
+        products_by_category[normalize_category(product_model.category)].append(product_model)
 
     # Prepare each category for concurrent processing
     async def process_category_creates(category_pk, product_list_for_category):
@@ -55,6 +67,9 @@ async def create_products(
             data["id"] = str(uuid.uuid4())
             data["status"] = ProductStatus.ACTIVE.value
             data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            
+            # Normalize category for consistent storage
+            data["category"] = normalize_category(data["category"])
             
             # Add all fields to the batch operation
             raw_product_data_in_batch.append(data)
@@ -142,7 +157,7 @@ async def update_products(
 
     updates_by_category: Dict[str, List] = defaultdict(list)
     for update_item in batch_update.items:
-        updates_by_category[update_item.category].append(update_item)
+        updates_by_category[normalize_category(update_item.category)].append(update_item)
     
     async def process_category_updates(category_pk, update_items_for_category):
         if not update_items_for_category:
@@ -256,7 +271,7 @@ async def delete_products(
 
     deletes_by_category: Dict[str, List[str]] = defaultdict(list) 
     for delete_item in batch_delete.items:
-        deletes_by_category[delete_item.category].append(delete_item.id)
+        deletes_by_category[normalize_category(delete_item.category)].append(delete_item.id)
 
     async def process_category_deletes(category_pk, product_ids_in_category):
         if not product_ids_in_category:
