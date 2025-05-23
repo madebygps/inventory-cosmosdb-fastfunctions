@@ -1,80 +1,65 @@
-# Inventory System with Cosmos DB, FastAPI on Azure Functions
-
-## Overview
-
-This project implements an inventory management system using Azure Cosmos DB as the database backend, FastAPI for API development, and deployed as serverless Azure Functions.
-
-## Features
-
-- **Product Management**: Create, read, update, and delete product information
-- **Batch Operations**: Perform operations on multiple products simultaneously
-- **Pagination**: Retrieve products in manageable chunks with continuation tokens
-- **Optimistic Concurrency**: Prevent conflicts using ETags for updates
-- **Partition-aware Operations**: Efficient database access with category-based partitioning
-
-## Architecture
-
-- **Azure Functions**: Serverless compute for hosting the API endpoints
-- **FastAPI**: Modern, fast web framework for building APIs
-- **Azure Cosmos DB**: NoSQL database for storing product data
-- **Azure Identity**: Secure access using DefaultAzureCredential
-- **Python**: Primary programming language (3.8+)
+# Inventory CosmosDB Fast Functions
 
 ## Prerequisites
 
-- Azure subscription
-- Python 3.8+
-- Azure Functions Core Tools v4+
+- Azure Functions Core Tools
+- Python 3.11+ (if using Python)
 - Azure CLI
-- Azure Developer CLI (azd) for simplified deployment
-- Azure Cosmos DB account or Cosmos DB Emulator for local development
-- Visual Studio Code with Azure Functions extension (recommended)
+- Azure Developer CLI (azd)
 
-## Setup and Development
+## Getting Started
 
-### 1. Clone the repository
+### 1. Deploy to Azure First
 
-```bash
-git clone https://github.com/your-username/inventory-cosmosdb-fastfunctions.git
-cd inventory-cosmosdb-fastfunctions
-```
-
-### 2. Deploy Azure Resources with AZD
+Before running locally, you need to deploy the application to Azure to generate the necessary environment configuration:
 
 ```bash
-# Login to Azure
-azd auth login
-
-# Deploy the application infrastructure
+# Deploy to Azure (this will create the .azure folder with environment settings)
 azd up
 ```
 
-### 3. Create a virtual environment and install dependencies
+### 2. Configure Azure CLI Authentication
+
+Make sure you're logged into Azure CLI with the same account used to deploy the project:
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+# Login to Azure CLI
+az login
+
+# Verify you're using the correct account
+az account show
 ```
 
-### 4. Grant your user principal access to the Cosmos DB account
+### 3. Configure Cosmos DB Access
+
+You need to grant your user account access to the Cosmos DB instance. Update the script with your actual values:
+
+```bash
+# Update the values in cosmosdb_access.sh with your account name and resource group
+# Then run:
+chmod +x cosmosdb_access.sh
+./cosmosdb_access.sh
+```
+
+The script assigns the Cosmos DB Data Contributor role to your user principal:
 
 ```bash
 az cosmosdb sql role assignment create \
-  --account-name <your-deployed-cosmos-account-name> \
-  --resource-group <your-resource-group> \
+  --account-name YOUR_COSMOSDB_ACCOUNT_NAME \
+  --resource-group YOUR_RESOURCE_GROUP_NAME \
   --scope "/" \
   --principal-id $(az ad signed-in-user show --query id -o tsv) \
   --role-definition-id "00000000-0000-0000-0000-000000000002"
 ```
 
-### 5. Configure local settings
+### 4. Configure Local Settings
 
-```bash
-cp local.settings.sample.json local.settings.json
-```
+After deployment, copy the environment values from the Azure deployment:
 
-Update `local.settings.json` with your Azure Cosmos DB information:
+1. Navigate to `.azure/[environment-name]/.env`
+2. Copy the required values to your `local.settings.json`
+
+Your `local.settings.json` should include:
 
 ```json
 {
@@ -82,92 +67,79 @@ Update `local.settings.json` with your Azure Cosmos DB information:
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "python",
-    "AzureWebJobsFeatureFlags": "EnableWorkerIndexing",
-    "COSMOSDB_ENDPOINT": "YOUR_DEPLOYED_COSMOS_DB_ENDPOINT",
+    "COSMOSDB_ENDPOINT": "https://yourcosmosdbaccount.documents.azure.com:443/",
     "COSMOSDB_DATABASE": "inventory",
-    "COSMOSDB_CONTAINER_PRODUCTS": "products"
+    "COSMOSDB_CONTAINER_PRODUCTS": "products",
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "",
+    "OTEL_LOGS_EXPORTER": "none",
+    "PYTHON_ENABLE_DEBUG_LOGGING": "1",
+    "APPLICATIONINSIGHTS_ENABLE_DEPENDENCY_CORRELATION": "true"
   }
 }
 ```
 
-### 6. Run the function locally
+**Required Environment Variables:**
+
+- `COSMOSDB_ENDPOINT` - Your Cosmos DB endpoint URL (copy from `.azure/[environment-name]/.env`)
+- `COSMOSDB_DATABASE` - The name of your Cosmos DB database
+- `COSMOSDB_CONTAINER_PRODUCTS` - The name of your Cosmos DB container for products
+- `APPLICATIONINSIGHTS_CONNECTION_STRING` - Your Application Insights connection string (optional)
+- `OTEL_LOGS_EXPORTER` - Set to `none` for local development
+- `PYTHON_ENABLE_DEBUG_LOGGING` - Set to `1` for local debugging
+- `APPLICATIONINSIGHTS_ENABLE_DEPENDENCY_CORRELATION` - Set to `true` for local debugging
+
+### 5. Run Locally
+
+Start the function app:
 
 ```bash
 func start
 ```
 
-## API Endpoints
+Access the API documentation:
+Navigate to [http://localhost:7071/docs?code=apikey](http://localhost:7071/docs?code=apikey)
 
-### Product Management
+Click on the Authorize button and enter the apikey as the value. Locally an actual API key is not required, but it is needed for the deployed version.
 
-- **GET /products/**
-  - List products by category with pagination
-  - Query parameters:
-    - `category`: Category to filter by (required)
-    - `continuation_token`: Token for pagination (optional)
-    - `limit`: Maximum items to return (default: 50)
+## Project Structure
 
-- **GET /products/{product_id}**
-  - Get a specific product
-  - Query parameters:
-    - `category`: Category of the product (required)
-
-- **POST /products/**
-  - Create a new product
-  - Body: Product details
-
-- **PATCH /products/{product_id}**
-  - Update a product
-  - Query parameters:
-    - `category`: Category of the product (required)
-  - Headers:
-    - `If-Match`: ETag for optimistic concurrency
-  - Body: Fields to update
-
-- **DELETE /products/{product_id}**
-  - Delete a product
-  - Query parameters:
-    - `category`: Category of the product (required)
-
-### Batch Operations
-
-- **POST /products/batch/**
-  - Create multiple products in a single operation
-  - Body: List of products to create
-
-- **PATCH /products/batch/**
-  - Update multiple products in a single operation
-  - Body: List of products with their ETags and changes
-
-- **DELETE /products/batch/**
-  - Delete multiple products in a single operation
-  - Body: List of product IDs and categories to delete
-
-## Data Model
-
-### Product
-
-```python
-{
-    "id": "string",  # UUID, auto-generated
-    "name": "string",  # Required
-    "description": "string",  # Optional
-    "category": "string",  # Required - Used as partition key
-    "price": float,  # Required
-    "sku": "string",  # Required - Stock keeping unit
-    "quantity": int,  # Default: 0
-    "status": "string",  # "active" or "inactive"
-    "last_updated": "datetime"  # Auto-updated timestamp
-}
+```txt
+├── .azure/                    # Azure deployment configuration
+│   └── [environment-name]/
+│       └── .env              # Environment variables (copy values from here)
+├── cosmosdb_access.sh        # Script to configure Cosmos DB access
+├── local.settings.json       # Local development settings
+└── [function files]
 ```
+
+## Accessing the deployed API
+
+Once the application is deployed to Azure, you can access the API endpoints directly from the Azure portal or using tools like Postman or curl. 
+
+You can also access the swagger UI for the deployed function app at:
+
+```txt
+https://<your-function-app-name>.azurewebsites.net/api/docs?code=apikey
+```
+
+Replace `<your-function-app-name>` with the name of your Azure Function App.
+Replace `apikey` with the actual API key if required, this is the function key generated during deployment. You can find it in the Azure portal under the "Functions" section of your Function App.
+
+
+## Development Workflow
+
+1. **First time setup**: Run `azd up` to deploy and generate environment configuration
+2. **Azure CLI setup**: Login with `az login` using the same account used for deployment
+3. **Cosmos DB access**: Update and run `cosmosdb_access.sh` to grant your user access
+4. **Local development**: Copy values from `.azure/[environment-name]/.env` to `local.settings.json`
+5. **Run locally**: Use `func start` for local development
+6. **Deploy changes**: Use `azd up` to redeploy
+
+## Troubleshooting
+
+- **Cosmos DB Access Issues**: Ensure you're logged into Azure CLI with the correct account and have run the `cosmosdb_access.sh` script
+- **Missing Environment Variables**: Check that you've copied all required values from `.azure/[environment-name]/.env` to `local.settings.json`
 
 ## API Documentation
 
-The API includes Swagger documentation available at the `/docs` endpoint when running locally or in Azure.
-
-## Security
-
-- API authentication is implemented using Azure Functions authentication
-- API keys can be provided via:
-  - Header: `x-functions-key`
-  - Query parameter: `code`
+When running locally, the interactive API documentation is available at the `/docs` endpoint with the API key parameter.
