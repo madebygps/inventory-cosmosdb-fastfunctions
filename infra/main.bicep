@@ -29,9 +29,6 @@ param logAnalyticsName string = ''
 @description('Custom App Insights name (optional)')
 param applicationInsightsName string = ''
 
-// User‐assigned identity for the Function App
-@description('Optional name for a user‐assigned managed identity')
-param apiUserAssignedIdentityName string = ''
 
 var tags = {
   'azd-env-name': name
@@ -99,25 +96,12 @@ module appInsights 'core/monitor/applicationinsights.bicep' = {
   scope: rg
   params: {
     name: empty(applicationInsightsName) ? '${prefix}-ai' : applicationInsightsName
-    dashboardName: '${prefix}-ai-dashboard'
     location: location
     tags: tags
     logAnalyticsWorkspaceId: logAnalytics.outputs.id
   }
 }
 
-// ───────────────────────────
-// User‐assigned Identity for the Function App
-// ───────────────────────────
-module userIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
-  name: 'userIdentity'
-  scope: rg
-  params: {
-    name: empty(apiUserAssignedIdentityName) ? '${prefix}-ui' : apiUserAssignedIdentityName
-    location: location
-    tags: tags
-  }
-}
 
 // ───────────────────────────
 // App Service Plan (Flex Consumption)

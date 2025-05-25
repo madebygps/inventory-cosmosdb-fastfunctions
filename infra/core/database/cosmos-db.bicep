@@ -27,7 +27,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2023-04-15' = {
     }
     locations: [
       {
-        locationName: location  // Changed from location to locationName
+        locationName: location 
         failoverPriority: 0
         isZoneRedundant: false
       }

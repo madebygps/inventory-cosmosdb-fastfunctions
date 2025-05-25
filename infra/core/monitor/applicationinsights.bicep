@@ -1,9 +1,6 @@
 @description('Name of the Application Insights instance')
 param name string
 
-@description('Name of the Application Insights dashboard')
-param dashboardName string
-
 @description('Azure region where the Application Insights will be deployed')
 param location string = resourceGroup().location
 
@@ -24,14 +21,6 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
   }
 }
 
-module appInsightsDashboard 'applicationinsights-dashboard.bicep' = {
-  name: 'application-insights-dashboard'
-  params: {
-    name: dashboardName
-    location: location
-    applicationInsightsName: appInsights.name
-  }
-}
 
 output connectionString string = appInsights.properties.ConnectionString
 output instrumentationKey string = appInsights.properties.InstrumentationKey
