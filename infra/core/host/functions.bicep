@@ -1,8 +1,5 @@
 metadata description = 'Deploys an Azure Function App with Flex Consumption Plan.'
 
-@description('Name of the App Service Plan')
-param planName string
-
 @description('Name of the Function App')
 param appName string
 
@@ -61,7 +58,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
 }
 
 resource flexFuncPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
-  name: planName
+  name: '${appName}-plan'
   location: location
   tags: tags
   kind: 'functionapp,linux'

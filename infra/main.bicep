@@ -102,22 +102,6 @@ module appInsights 'core/monitor/applicationinsights.bicep' = {
   }
 }
 
-
-// ───────────────────────────
-// App Service Plan (Flex Consumption)
-// ───────────────────────────
-module appPlan 'core/host/appserviceplan.bicep' = {
-  name: 'appPlan'
-  scope: rg
-  params: {
-    name: '${prefix}-plan'
-    location: location
-    tags: tags
-    reserved: true
-    zoneRedundant: false
-  }
-}
-
 // ───────────────────────────
 // Function App
 // ───────────────────────────
@@ -125,7 +109,6 @@ module functionApp 'core/host/functions.bicep' = {
   name: 'functionApp'
   scope: rg
     params: {
-      planName: appPlan.outputs.name
       appName: '${prefix}-func'
       location: location
       tags: tags
