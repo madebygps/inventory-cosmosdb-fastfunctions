@@ -29,6 +29,9 @@ param logAnalyticsName string = ''
 @description('Custom App Insights name (optional)')
 param applicationInsightsName string = ''
 
+// User‐assigned identity for the Function App
+@description('Optional name for a user‐assigned managed identity')
+param apiUserAssignedIdentityName string = ''
 
 var tags = {
   'azd-env-name': name
@@ -103,12 +106,27 @@ module appInsights 'core/monitor/applicationinsights.bicep' = {
 }
 
 // ───────────────────────────
+// User‐assigned Identity for the Function App
+// ───────────────────────────
+module userIdentity 'br/public:avm/res/managed-identity/user-assigned-identity:0.4.1' = {
+  name: 'userIdentity'
+  scope: rg
+  params: {
+    name: empty(apiUserAssignedIdentityName) ? '${prefix}-ui' : apiUserAssignedIdentityName
+    location: location
+    tags: tags
+  }
+}
+
+
+// ───────────────────────────
 // Function App
 // ───────────────────────────
 module functionApp 'core/host/functions.bicep' = {
   name: 'functionApp'
   scope: rg
     params: {
+      planName: '${prefix}-plan'
       appName: '${prefix}-func'
       location: location
       tags: tags

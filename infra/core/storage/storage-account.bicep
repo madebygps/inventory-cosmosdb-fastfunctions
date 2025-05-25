@@ -69,7 +69,7 @@ resource containerResource 'Microsoft.Storage/storageAccounts/blobServices/conta
   parent: blobServices
   name: container.name
   properties: {
-    publicAccess: contains(container, 'publicAccess') ? container.publicAccess : 'None'
+    publicAccess: container.?publicAccess ?? 'None'
   }
 }]
 

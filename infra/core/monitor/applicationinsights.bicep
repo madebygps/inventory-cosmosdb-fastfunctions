@@ -1,6 +1,7 @@
 @description('Name of the Application Insights instance')
 param name string
 
+
 @description('Azure region where the Application Insights will be deployed')
 param location string = resourceGroup().location
 
@@ -20,6 +21,7 @@ resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
     WorkspaceResourceId: logAnalyticsWorkspaceId
   }
 }
+
 
 
 output connectionString string = appInsights.properties.ConnectionString
